@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # pylint: disable=invalid-name
 from __future__ import print_function
 from spectral import *
@@ -7,6 +8,8 @@ import pylab
 import spectral.io.envi as envi
 import random
 from scipy.spatial.distance import cdist
+from sklearn.cluster import KMeans
+from timeit import default_timer as timer
 
 def generate_class_colours(n):
     import colorsys
@@ -14,10 +17,16 @@ def generate_class_colours(n):
     RGB_tuples = [colorsys.hsv_to_rgb(*x) for x in HSV_tuples]
     return [(int(r*255), int(g*255), int(b*255)) for (r, g, b) in RGB_tuples]
 
+def generate_class_and_subclass_colours(nc, nsc):
+    pass
+
 def normalized(a, order=2, axis=-1):
     norms = np.atleast_1d(np.linalg.norm(a, order, axis))
     norms[norms == 0] = 1
     return a / np.expand_dims(norms, axis)
+
+def image_of_modules(image):
+    return np.sqrt(np.einsum('ijk,ijk->ij', image, image))
 
 def show_centers(centers, title):
     if title is None:
@@ -28,6 +37,14 @@ def show_centers(centers, title):
         pylab.plot(centers[i])
     pylab.title(title)
     pylab.show()
+
+def show_histogram(hist_values, title):
+    pylab.figure()
+    pylab.hist(range(len(hist_values)), len(hist_values), weights=hist_values)
+    pylab.title(title)
+    pylab.show()
+    raw_input("Press Enter to continue...")
+    pylab.close()
 
 def kmeans_cosine(image, nclusters=10, max_iterations=20, **kwargs):
     from spectral.algorithms.spymath import has_nan, NaNValueError
@@ -383,6 +400,121 @@ def find_related_clusters(image, min_correlation, **kwargs):
     return (clusters.reshape(nrows, ncols), centers[:, :num_centers].T.copy())
 
 
+def find_mincorr_centers(values, centers):
+    minci = np.argmin(np.sum(np.matmul(values, centers), axis=1))
+    return values[minci], minci
+
+def find_mincorr3(values, centers = None, reduce_coef = None):
+    if reduce_coef is not None and values.shape[0] > reduce_coef:
+        allinds = np.arange(values.shape[0])
+        np.random.shuffle(allinds)
+        values = values[allinds[:values.shape[0]/reduce_coef], :]
+    if centers is None:
+        centers = values.T
+    index = 0
+    minsumcos = float('inf')
+    percentage = 0.0
+    N = values.shape[0]
+
+    for i in range(N):
+        sumcos = np.sum(np.matmul(values[i][np.newaxis], centers))
+        if sumcos < minsumcos:
+            minsumcos = sumcos
+            index = i
+
+        # if float(i)/N >= percentage + 0.01:
+        #     percentage = float(i)/N
+        #     print('\r%d%% finding min corr completed' % int(percentage * 100), end='')
+        #     sys.stdout.flush()
+
+    # print(' ')
+
+    # index = np.argmin(np.sum(np.matmul(values, values.T), axis=1))
+    # index = np.argmin(np.einsum('ij,jk->k', values, values.T, optimize='optimal'))
+
+    return values[index]
+
+def find_maxdist_clusters(image, min_correlation):
+    from spectral.algorithms.spymath import has_nan, NaNValueError
+
+    if has_nan(image):
+        raise NaNValueError('Image data contains NaN values.')
+
+    (nrows, ncols, nbands) = image.shape
+    N = nrows * ncols
+    image = normalized(image.reshape((N, nbands)))
+    values = image.copy()
+    clusters = np.zeros((N,), int) - 1
+    MAX_CENTERS = 65536
+    centers = np.zeros((nbands, MAX_CENTERS))
+    num_centers = 0
+    #avg = np.average(image, axis=0)
+    #values -= avg
+    #centers[:, 0], minci = find_mincorr2(values)
+    #values = np.delete(values, minci, axis=0)
+    newcenter = find_mincorr3(values, None, 10)
+    centers[:, num_centers] = newcenter
+    num_centers += 1
+    corrs_with_newcenter = np.matmul(values, newcenter)
+    high_corr_inds = np.argwhere(corrs_with_newcenter >= min_correlation)
+    values = np.delete(values, high_corr_inds, axis=0)
+
+    while values.size > 0 and num_centers < MAX_CENTERS:
+        newcenter = find_mincorr3(values, centers[:, :num_centers])
+        centers[:, num_centers] = newcenter
+        num_centers += 1
+        corrs_with_newcenter = np.matmul(values, newcenter)
+        high_corr_inds = np.argwhere(corrs_with_newcenter >= min_correlation)
+        values = np.delete(values, high_corr_inds, axis=0)
+
+        print('%d centers found, left %d         ' % (num_centers, values.shape[0]), end='\r')
+        sys.stdout.flush()
+
+    print('assigning values...')
+
+    centers = centers[:, :num_centers]
+    print(centers)
+    clusters = np.argmax(np.matmul(image, centers), 1)
+    print('done')
+
+    return (clusters.reshape(nrows, ncols), centers.T.copy())
+
+def find_cluster_edges(hist, edges):
+    cedges = [edges[0]]
+    i = 1
+    while i < len(hist) - 1:
+        if hist[i - 1] > hist[i] and hist[i] < hist[i + 1]:
+            cedges.append(edges[i])
+        i += 1
+    cedges.append(edges[-1])
+    return cedges
+
+def subdivide_by_modules(image, class_map, num_classes, unify):
+    image = image.astype(float)
+    modules = image_of_modules(image)
+    class_counter = 0
+    # for each class
+    subclass_map = np.zeros_like(class_map)
+    for i in range(num_classes):
+        print('\rsubdividing class %d' % i, end='')
+        sys.stdout.flush()
+        iclass_modules = modules[class_map == i]
+        bins='fd'
+        iclass_histogram, bin_edges = np.histogram(iclass_modules, bins=bins)
+        cedges = find_cluster_edges(iclass_histogram, bin_edges)
+        cedges[-1] += 1e-10
+        subclasses = np.digitize(iclass_modules, cedges)
+        if unify:
+            subclasses += class_counter
+            class_counter += 1
+        subclass_map[np.where(class_map == i)] = subclasses
+
+        #show_histogram(iclass_histogram, "Histogram of modules of class %d" % i)
+
+    print('')
+    return subclass_map
+
+
 #img = open_image('92AV3C.lan')
 # gt = open_image('92AV3GT.GIS').read_band(0)
 img = envi.open('f080611t01p00r07rdn_c_sc01_ort_img.hdr')
@@ -390,11 +522,13 @@ img = envi.open('f080611t01p00r07rdn_c_sc01_ort_img.hdr')
 print(img)
 
 data = img[400:1000, 200:, :]
+# data = img[400:700, 200:400, :]
 data[data <= 0] = 1
 print(data.dtype)
 
-view = imshow(data, (29, 20, 12), title="Image")
-#raw_input("Press Enter to continue...")
+# view = imshow(data, (29, 20, 12), title="Image")
+# raw_input("Press Enter to continue...")
+# exit()
 
 #print(distance.cosine(data[50,15,:], data[100, 1, :]))
 nclusters = 500
@@ -406,30 +540,51 @@ nclusters = 500
 #(class_map, centers) = kmeans_L2(data, nclusters=nclusters, max_iterations=500)
 #(class_map, centers) = kmeans_cdist(data, nclusters=nclusters, max_iterations=900)
 
-(class_map, centers) = find_related_clusters(data, 0.997)
+#(class_map, centers) = find_related_clusters(data, 0.99)
+(class_map, centers) = find_maxdist_clusters(data, 0.99)
 print('Centers\' shape: ', centers.shape)
+subclass_map = subdivide_by_modules(data, class_map, centers.shape[0], True)
+
 #(class_map, centers) = find_related_clusters(data, 0.99, start_centers=centers)
 #(class_map, centers) = kmeans_cosine(data, nclusters=centers.shape[0], max_iterations=10, start_clusters=centers)
 
-class_colours = generate_class_colours(centers.shape[0])
+view = imshow(data, (29, 20, 12), title="Image")
+#raw_input("Press Enter to continue...")
 
-view = imshow(data, (29, 20, 12), classes=class_map, colors=class_colours, title="Image with class overlay")
-view.set_display_mode('overlay')
-view.class_alpha = 0.5
+def show_classes(class_map):
+    class_colours = generate_class_colours(np.max(class_map))
+    view = imshow(data, (29, 20, 12), classes=class_map, colors=class_colours, title="Image with class overlay")
+    view.set_display_mode('overlay')
+    view.class_alpha = 0.5
+    return imshow(classes=class_map, colors=class_colours, title="Classes")
 
-view = imshow(classes=class_map, colors=class_colours, title="Classes")
+view = show_classes(subclass_map - 1)
+
+water_class = class_map[406, 151]
+inds_of_water = np.where(class_map == water_class)
+sigs_of_water = data[inds_of_water]
+subclasses_of_water = np.unique(subclass_map[inds_of_water])
+
+signatures = np.empty((subclasses_of_water.shape[0], data.shape[2]))
+for i in range(subclasses_of_water.shape[0]):
+    inds_of_subclass = np.where(subclass_map == subclasses_of_water[i])
+    print( (inds_of_subclass[0][0], inds_of_subclass[1][0]))
+    signatures[i] = data[inds_of_subclass[0][0], inds_of_subclass[1][0]]
+
+show_centers(signatures, u'Signatures of water subclasses')
 
 counts_per_clusters = np.empty((centers.shape[0],), dtype=int)
 for i in range(centers.shape[0]):
     counts_per_clusters[i] = np.count_nonzero(class_map == i)
 
 print('counts per clusters: ', counts_per_clusters)
+show_histogram(counts_per_clusters, 'Number of signatures per cluster')
 
 show_centers(centers, "Final centers")
 
 # compute image of modules
 data_double = data.astype(float)
-modules = np.sqrt(np.einsum('ijk,ijk->ij', data_double, data_double))
+modules = image_of_modules(data_double)
 
 # compute modules of centers
 center_modules = np.sqrt(np.einsum('ij,ij->i', centers, centers))
@@ -474,7 +629,7 @@ print('Avg: ', np.average(as1darray))
 (i_of_max, j_of_max, band_of_max) = np.unravel_index(np.argmax(abs_diffs), abs_diffs.shape)
 print('Coordinates of max: ', i_of_max, j_of_max, band_of_max)
 print('Check the difference: ', data[i_of_max, j_of_max, band_of_max] - reconstruction[i_of_max, j_of_max, band_of_max])
-print(data[i_of_max, j_of_max] - reconstruction[i_of_max, j_of_max])
+#print(data[i_of_max, j_of_max] - reconstruction[i_of_max, j_of_max])
 
 pylab.figure()
 # pylab.hold(1) # default and depricated
