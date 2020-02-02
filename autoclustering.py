@@ -94,6 +94,24 @@ def find_mincorr3(values, centers = None, reduce_coef = None):
 
     return values[index]
 
+def find_maxdist_from_center(values, centers):
+    avg = np.average(values if centers is None else centers, axis=0)
+    diff = values - avg
+    distances = np.einsum('ij,ij->i', diff, diff, optimize='optimal')
+    index_of_max = np.argmax(distances)
+    return values[index_of_max]
+
+def find_mincorr_from_center(values, centers):
+    """
+        Returns vector that is least correlated from center of centers or values (if centers are None).
+        Values are of shape (N, c) where c is number of channel or dimensionality of each vector.
+        Values are expected to be normalized.
+    """
+    avg = np.average(values if centers is None else centers, axis=0)
+    corrs = np.matmul(values, avg)
+    index_of_mин = np.argmin(corrs)
+    return values[index_of_mин]
+
 def find_maxdist_clusters(image, min_correlation):
     from spectral.algorithms.spymath import has_nan, NaNValueError
 
@@ -102,8 +120,8 @@ def find_maxdist_clusters(image, min_correlation):
 
     (nrows, ncols, nbands) = image.shape
     N = nrows * ncols
-    image = normalized(image.reshape((N, nbands)))
-    values = image.copy()
+    values = normalized(image.reshape((N, nbands)))
+    #values = image.copy()
     clusters = np.zeros((N,), int) - 1
     MAX_CENTERS = 65536
     centers = np.zeros((nbands, MAX_CENTERS))
@@ -112,7 +130,8 @@ def find_maxdist_clusters(image, min_correlation):
     #values -= avg
     #centers[:, 0], minci = find_mincorr2(values)
     #values = np.delete(values, minci, axis=0)
-    newcenter = find_mincorr3(values, None, 10)
+    #newcenter = find_mincorr3(values, None, 10)
+    newcenter = find_mincorr_from_center(values)
     centers[:, num_centers] = newcenter
     num_centers += 1
     corrs_with_newcenter = np.matmul(values, newcenter)
@@ -120,7 +139,7 @@ def find_maxdist_clusters(image, min_correlation):
     values = np.delete(values, high_corr_inds, axis=0)
 
     while values.size > 0 and num_centers < MAX_CENTERS:
-        newcenter = find_mincorr3(values, centers[:, :num_centers])
+        newcenter = find_mincorr_from_center(values, centers[:, :num_centers])
         centers[:, num_centers] = newcenter
         num_centers += 1
         corrs_with_newcenter = np.matmul(values, newcenter)
