@@ -9,6 +9,9 @@
 void continuum(double input[], double output[], size_t n) {
 
 	output[0] = input[0];
+	// i points to the last point that belongs to the curve.
+	// j points to the current potential point.
+	// k points to the current point that could eliminate j as potential.
 	for (size_t i = 0, j = 1; j < n;) {
 		// Check if j belongs to curve.
 		size_t k = j + 1;
