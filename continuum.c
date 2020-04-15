@@ -17,8 +17,7 @@ void continuum(double input[], double output[], size_t n) {
 		size_t k = j + 1;
 		for (; k < n; ++k) {
 			double qoef = (input[k] - input[i]) / (WL(k) - WL(i));
-			double bias = input[k] - qoef * WL(k);
-			double intersection = bias + qoef * WL(j);
+			double intersection = qoef * (WL(j) - WL(i)) + input[i];
 			if (input[j] < intersection) {
 				break;
 			}
@@ -29,9 +28,8 @@ void continuum(double input[], double output[], size_t n) {
 			// line connecting input[i] and input[k].
 			// Fill the gap using qoef.
 			double qoef = (input[j] - input[i]) / (WL(j) - WL(i));
-			double bias = input[j] - qoef * WL(j);
 			for (size_t t = i + 1; t < j; ++t) {
-				output[t] = bias + qoef * WL(t);
+				output[t] = qoef * (WL(t) - WL(i)) + input[i];
 			}
 			// Fill exact value.
 			output[j] = input[j];
