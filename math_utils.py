@@ -17,3 +17,31 @@ def cluster_histogram(centers, class_map):
     for i in range(centers.shape[0]):
         hist[i] = np.count_nonzero(class_map == i)
     return hist
+
+def find_max_diff_l2(sigs, from_sig):
+    diff = sigs - from_sig
+    distances = np.einsum('ij,ij->i', diff, diff, optimize='optimal')
+    index_of_max = np.argmax(distances)
+    return sigs[index_of_max]
+
+def find_max_diff_l1(sigs, from_sig):
+    distances = np.sum(np.abs(sigs - from_sig), axis=1)
+    index_of_max = np.argmax(distances)
+    return sigs[index_of_max]
+
+def find_max_diff_angle(sigs, from_sig):
+    norm_sigs = normalized(sigs)
+    norm_from_sig = from_sig / np.linalg.norm(from_sig)
+    cosines = np.dot(norm_sigs, norm_from_sig)
+    index_of_max = np.argmin(cosines)
+    return sigs[index_of_max]
+
+def find_with_max_norm2(sigs):
+    norms = np.linalg.norm(sigs, 2, 1)
+    index_of_max = np.argmax(norms)
+    return sigs[index_of_max]
+
+def find_with_max_norm1(sigs):
+    norms = np.sum(np.abs(sigs), axis=1)
+    index_of_max = np.argmax(norms)
+    return sigs[index_of_max]

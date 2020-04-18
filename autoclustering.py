@@ -7,6 +7,18 @@ import random
 from math_utils import normalized
 
 def find_related_clusters2(image, min_correlation, **kwargs):
+    """
+        Primitive algorithm that scans image left to right, top to buttom,
+        and assigns pixels/signatures to clusters. When, during scaning it finds
+        pixel that is less than min_correlation correlated with all already found centers,
+        algorithm assigns that pixel to new cluster, and that pixel is also new center.
+        if kwarg start_centers is not present, then starting center is first pixel.
+        Which means, centers are not really centers, but starting pixels of each
+        cluster. However, these centers are good potetial starting centers
+        to apply K-Means.
+        Returns pair of (map of cluster indices, centers).
+        Centers have shape (num_centers, signature_length).
+    """
     from spectral.algorithms.spymath import has_nan, NaNValueError
 
     if has_nan(image):
@@ -61,10 +73,28 @@ def find_related_clusters2(image, min_correlation, **kwargs):
 
 
 def find_mincorr_centers(values, centers):
+    """
+        Finds value that is least correleted with all the centers,
+        that is, value that has smallest sum of cosines between itself
+        and each of the centers.
+        Values and centers should be normalized.
+        Values are of shape (N, signature_length), and centers (sig_len, N).
+        Returns pair of value and its index.
+    """
     minci = np.argmin(np.sum(np.matmul(values, centers), axis=1))
     return values[minci], minci
 
 def find_mincorr3(values, centers = None, reduce_coef = None):
+    """
+        Like find_mincorr, but with few notable differences.
+        If there is reduce_coef and number of values is greater than that,
+        values are transformed (locally, does not effect caller),
+        so that their number is reduced by the factor of reduce_ceof.
+        In other words, there will be reduce_ceof times less values
+        than originally provided, and they will be taken at random.
+        This is for perfomance reasons.
+        If centers are not provided they will be transpose of values.
+    """
     if reduce_coef is not None and values.shape[0] > reduce_coef:
         allinds = np.arange(values.shape[0])
         np.random.shuffle(allinds)
@@ -95,6 +125,11 @@ def find_mincorr3(values, centers = None, reduce_coef = None):
     return values[index]
 
 def find_maxdist_from_center(values, centers):
+    """
+        Returns vector that is furthest away (by L2) from center of centers or values (if centers are None).
+        Values are of shape (N, c) where c is number of channel or dimensionality of each vector.
+        Values are expected to be normalized.
+    """
     avg = np.average(values if centers is None else centers, axis=0)
     diff = values - avg
     distances = np.einsum('ij,ij->i', diff, diff, optimize='optimal')
@@ -103,16 +138,28 @@ def find_maxdist_from_center(values, centers):
 
 def find_mincorr_from_center(values, centers):
     """
-        Returns vector that is least correlated from center of centers or values (if centers are None).
+        Returns value that is least correlated from center of centers or values (if centers are None).
         Values are of shape (N, c) where c is number of channel or dimensionality of each vector.
         Values are expected to be normalized.
     """
     avg = np.average(values if centers is None else centers, axis=0)
     corrs = np.matmul(values, avg)
-    index_of_mин = np.argmin(corrs)
-    return values[index_of_mин]
+    index_of_min = np.argmin(corrs)
+    return values[index_of_min]
 
 def find_maxdist_clusters(image, min_correlation):
+    """
+        First finds signature that is least correlated with the average.
+        It becomes first cluster center.
+        Then finds next cluster center, the one that is least correlated
+        with average (center) of existing cluster centers.
+        Then the steps are repeated, until there is no more unclassified signatures.
+        After each iteration all signatures that have correlation with new center
+        equal or greater than min_correlation are clussified to belong to this new cluster,
+        and excluded from further classification.
+        Returns pair of map of indices of clusters,
+        and cluster centers of shape (N, signature_length).
+    """
     from spectral.algorithms.spymath import has_nan, NaNValueError
 
     if has_nan(image):
