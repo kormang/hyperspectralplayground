@@ -140,3 +140,39 @@ def pycontinuum_points(signature):
             # connecting them and i.
             j = k
     return points
+
+
+def pypartial_continuum_points(signature, strict_range):
+    points = [(0, signature[0])]
+    n = len(signature)
+    i = 0 # Points to last point that belongs to the curve.
+    j = 1 # Points to current potential point.
+    while j < n:
+        # Check all points in front of j,
+        # to make sure it belongs to the curve.
+        k = j + 1
+        cont_limit = min(k + strict_range, n)
+        while k < cont_limit:
+            qoef = (signature[k] - signature[i]) / (k - i)
+            intersection = qoef * (j - i) + signature[i]
+            if signature[j] < intersection:
+                break # J does not belong.
+            k += 1
+        
+        if k == cont_limit:
+            # j belongs.
+            points.append((j, signature[j]))
+            
+            # Last point that belongs is not j.
+            i = j
+            # Next, check j + 1
+            j = j + 1
+        else:
+            # j does not belong.
+            # Maybe k does, so it is next potential point.
+            # We don't use j + 1, because we skip al the way to k,
+            # since, all points between j and k are "below" j,
+            # so must be "below" k too. "Below" means, j is above line
+            # connecting them and i.
+            j = k
+    return points
