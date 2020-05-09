@@ -18,7 +18,7 @@ def pycontinuum_removed(signature, continuum, removed = None):
     np.divide(signature, continuum, out=removed)
     return removed
 
-def pycontinuum(signature, continuum = None):
+def pycontinuum(signature, wavelengths, continuum = None):
     if continuum is None:
         continuum = np.empty_like(signature)
     continuum[0] = signature[0]
@@ -30,8 +30,8 @@ def pycontinuum(signature, continuum = None):
         # to make sure it belongs to the curve.
         k = j + 1
         while k < n:
-            qoef = (signature[k] - signature[i]) / (k - i)
-            intersection = qoef * (j - i) + signature[i]
+            qoef = (signature[k] - signature[i]) / (wavelengths[k] - wavelengths[i])
+            intersection = qoef * (wavelengths[j] - wavelengths[i]) + signature[i]
             if signature[j] < intersection:
                 break # J does not belong.
             k += 1
@@ -40,9 +40,9 @@ def pycontinuum(signature, continuum = None):
             # j belongs.
             
             # We need to fill the values in continuum between i and j.
-            qoef = (signature[j] - signature[i]) / (j - i)
+            qoef = (signature[j] - signature[i]) / (wavelengths[j] - wavelengths[i])
             for t in range(i + 1, j):
-                continuum[t] = qoef * (t - i) + signature[i]
+                continuum[t] = qoef * (wavelengths[t] - wavelengths[i]) + signature[i]
             
             # For j, fill exact value.
             continuum[j] = signature[j]
@@ -62,7 +62,7 @@ def pycontinuum(signature, continuum = None):
     return continuum
 
 
-def pypartial_continuum(signature, strict_range, continuum = None):
+def pypartial_continuum(signature, wavelengths, strict_range, continuum = None):
     if continuum is None:
         continuum = np.empty_like(signature)
     continuum[0] = signature[0]
@@ -75,8 +75,8 @@ def pypartial_continuum(signature, strict_range, continuum = None):
         k = j + 1
         cont_limit = min(k + strict_range, n)
         while k < cont_limit:
-            qoef = (signature[k] - signature[i]) / (k - i)
-            intersection = qoef * (j - i) + signature[i]
+            qoef = (signature[k] - signature[i]) / (wavelengths[k] - wavelengths[i])
+            intersection = qoef * (wavelengths[j] - wavelengths[i]) + signature[i]
             if signature[j] < intersection:
                 break # J does not belong.
             k += 1
@@ -85,9 +85,9 @@ def pypartial_continuum(signature, strict_range, continuum = None):
             # j belongs.
             
             # We need to fill the values in continuum between i and j.
-            qoef = (signature[j] - signature[i]) / (j - i)
+            qoef = (signature[j] - signature[i]) / (wavelengths[j] - wavelengths[i])
             for t in range(i + 1, j):
-                continuum[t] = qoef * (t - i) + signature[i]
+                continuum[t] = qoef * (wavelengths[t] - wavelengths[i]) + signature[i]
             
             # For j, fill exact value.
             continuum[j] = signature[j]
@@ -110,8 +110,8 @@ def pypartial_continuum(signature, strict_range, continuum = None):
 ## NOTE: using points and interpolation, or other methods we can construct any kind of continuum we like.
 ## Leave above function as reference and for backward compatibility, but further develop only points-based functions.
 
-def pypartial_continuum_points(signature, strict_range):
-    points = [(0, signature[0])]
+def pypartial_continuum_points(signature, wavelengths, strict_range):
+    points = [(wavelengths[0], signature[0])]
     n = len(signature)
     i = 0 # Points to last point that belongs to the curve.
     j = 1 # Points to current potential point.
@@ -121,15 +121,15 @@ def pypartial_continuum_points(signature, strict_range):
         k = j + 1
         cont_limit = min(k + strict_range, n)
         while k < cont_limit:
-            qoef = (signature[k] - signature[i]) / (k - i)
-            intersection = qoef * (j - i) + signature[i]
+            qoef = (signature[k] - signature[i]) / (wavelengths[k] - wavelengths[i])
+            intersection = qoef * (wavelengths[j] - wavelengths[i]) + signature[i]
             if signature[j] < intersection:
                 break # J does not belong.
             k += 1
         
         if k == cont_limit:
             # j belongs.
-            points.append((j, signature[j]))
+            points.append((wavelengths[j], signature[j]))
             
             # Last point that belongs is not j.
             i = j
@@ -146,17 +146,15 @@ def pypartial_continuum_points(signature, strict_range):
     return points
 
 
-def pycontinuum_points(signature):
+def pycontinuum_points(signature, wavelengths):
     """
         Returns list of points (i, signature[i]) that belong to continuum.
     """
-    return pypartial_continuum_points(signature, len(signature))
+    return pypartial_continuum_points(signature, wavelengths, len(signature))
 
-def interpolate_points(points, kind='linear'):
-    # Interpolation whole range, without extrapolation.
-    x = np.arange(points[0][0], points[-1][0] + 1)
+def interpolate_points(points, wavelengths, kind='linear'):
     xp = [x for x, _ in points]
     yp = [y for _, y in points]
     f = scipy.interpolate.interp1d(xp, yp, kind=kind, assume_sorted=True)
-    return f(x)
+    return f(wavelengths)
 

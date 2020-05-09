@@ -2,11 +2,11 @@
 
 #include <stdio.h>
 
-// Used to represent wavelength in case we switch
-// to algorithm that includes wavelength.
-#define WL(x) (x)
+// Used to represent wavelengths in case we switch
+// to algorithm that includes wavelengths.
+#define WL(x) (wavelengths[x])
 
-void continuum(double input[], double output[], size_t n) {
+void continuum(double input[], double output[], double wavelengths[], size_t n) {
 
 	output[0] = input[0];
 	// i points to the last point that belongs to the curve.
@@ -45,8 +45,8 @@ void continuum(double input[], double output[], size_t n) {
 	}
 }
 
-void continuum_removed(double input[], double output[], size_t n) {
-	continuum(input, output, n);
+void continuum_removed(double input[], double output[], double wavelengths[], size_t n) {
+	continuum(input, output, wavelengths, n);
 	for (size_t i = 0; i < n; ++i) {
 		output[i] = input[i] / output[i];
 	}

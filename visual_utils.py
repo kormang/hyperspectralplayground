@@ -40,14 +40,14 @@ def show_classes(class_map):
     return imshow(classes=class_map, colors=class_colours, title="Classes")
 
 
-def draw_common_2cols_graphs(graphs):
+def draw_common_2cols_graphs(graphs, xs):
     fig = pylab.figure()
     fig.set_size_inches(3*4, 2*6)
 
     for r in range(len(graphs)):
         for c in range(len(graphs[r])):
-            pylab.subplot(3, 2, (r*2)+1+c)
+            pylab.subplot(4, 2, (r*2)+1+c)
             for g in range(len(graphs[r][c])):
-                pylab.plot(graphs[r][c][g])
+                pylab.plot(xs, graphs[r][c][g])
 
     pylab.show()

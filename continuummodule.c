@@ -26,11 +26,11 @@ static PyObject *ErrorObject;
   Check that PyArrayObject is a double (Float) type and a 1d, or 2d array.
   Return 1 if an error and raise exception.
 */
-static int check_type(PyArrayObject* a)  {
+static int check_type(PyArrayObject* a, int min_dim, int max_dim)  {
   Py_ssize_t ndim = PyArray_NDIM(a);
-	if (PyArray_TYPE(a) != NPY_DOUBLE || (ndim != 1 && ndim != 2))  {
+	if (PyArray_TYPE(a) != NPY_DOUBLE || (ndim < min_dim || ndim > max_dim))  {
 		PyErr_SetString(PyExc_ValueError,
-			"In check_type: array must be of type Float and 1 or 2 dimensional.");
+			"In check_type: array has incorrect number of dimensions");
 		return 1;
   }
 	return 0;
@@ -55,29 +55,46 @@ static int check_same_shapes(PyArrayObject* a, PyArrayObject* b) {
 
 static PyObject *
 continuum_generic_impl(PyObject *self, PyObject *args,
-  void (*continuum_processing_f)(double*, double*, size_t))
+  void (*continuum_processing_f)(double*, double*, double*, size_t))
 {
     PyArrayObject* ain;
     PyArrayObject* aout;
-    if (!PyArg_ParseTuple(args, "O!O!", &PyArray_Type, &ain,
-        &PyArray_Type, &aout))  return Py_None;
+    PyArrayObject* awl;
+    if (!PyArg_ParseTuple(args, "O!O!O!", &PyArray_Type, &ain,
+        &PyArray_Type, &aout, &PyArray_Type, &awl)) {
+        return Py_None;
+    }
 
     if (NULL == ain)  return Py_None;
     if (NULL == aout)  return Py_None;
+    if (NULL == awl)  return Py_None;
 
-    if (check_type(ain)) return Py_None;
-    if (check_type(aout)) return Py_None;
+    if (check_type(ain, 1, 2)) return Py_None;
+    if (check_type(aout, 1, 2)) return Py_None;
+    if (check_type(awl, 1, 1)) return Py_None;
 
     if (check_same_shapes(ain, aout)) return Py_None;
+
+    double* dataawl = (double*)PyArray_DATA(awl);
 
     if (PyArray_NDIM(ain) == 1) {
       double* datain = (double*)PyArray_DATA(ain);
       double* dataout = (double*)PyArray_DATA(aout);
       Py_ssize_t signature_length = PyArray_SHAPE(ain)[0];
-      continuum_processing_f(datain, dataout, signature_length);
+      if (signature_length != PyArray_SHAPE(awl)[0]) {
+          PyErr_SetString(PyExc_ValueError,
+              "In continuum_generic_impl: wavelengths array has incorrect length.");
+          return Py_None;
+      }
+      continuum_processing_f(datain, dataout, dataawl, signature_length);
     } else {
       Py_ssize_t num_signatures = PyArray_SHAPE(ain)[0];
       Py_ssize_t signature_length = PyArray_SHAPE(ain)[1];
+      if (signature_length != PyArray_SHAPE(awl)[0]) {
+          PyErr_SetString(PyExc_ValueError,
+              "In continuum_generic_impl: wavelengths array has incorrect length.");
+          return Py_None;
+      }
 
       #pragma omp parallel for
       for (Py_ssize_t i = 0; i < num_signatures; ++i) {
@@ -85,13 +102,12 @@ continuum_generic_impl(PyObject *self, PyObject *args,
           + i * PyArray_STRIDES(ain)[0]);
         double* dataout = (double*)(PyArray_DATA(aout)
           + i * PyArray_STRIDES(aout)[0]);
-        continuum_processing_f(datain, dataout, signature_length);
+        continuum_processing_f(datain, dataout, dataawl, signature_length);
       }
     }
 
     return Py_None;
 }
-
 
 /* Function accepting 1d array and returning continuum signature. */
 
