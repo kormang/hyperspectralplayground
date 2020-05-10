@@ -157,4 +157,3 @@ def interpolate_points(points, wavelengths, kind='linear'):
     yp = [y for _, y in points]
     f = scipy.interpolate.interp1d(xp, yp, kind=kind, assume_sorted=True)
     return f(wavelengths)
-

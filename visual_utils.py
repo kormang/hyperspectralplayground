@@ -51,3 +51,15 @@ def draw_common_2cols_graphs(graphs, xs):
                 pylab.plot(xs, graphs[r][c][g])
 
     pylab.show()
+
+def draw_common_vert_plots(graphs):
+    numplots = len(graphs)
+    fig = pylab.figure()
+    fig.set_size_inches(3*4, 2*4)
+    
+    for i in range(numplots):
+        pylab.subplot(numplots, 1, i+1)
+        pylab.xticks(graphs[i]['xticks'])
+        pylab.plot(graphs[i]['x'], graphs[i]['y'])
+
+    pylab.show()

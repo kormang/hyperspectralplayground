@@ -4,6 +4,8 @@ from __future__ import print_function
 from spectral import *
 import numpy as np
 import math
+from scipy.fft import fft, ifft
+from scipy.signal import convolve
 
 def normalized(a, order=2, axis=-1):
     norms = np.atleast_1d(np.linalg.norm(a, order, axis))
@@ -49,3 +51,23 @@ def find_with_max_norm1(sigs):
 
 def clamp(n, smallest, largest):
     return max(smallest, min(n, largest))
+
+def step_at(length, start_at):
+    if start_at >= length:
+        raise ValueError('start_at must be less than length')
+    res = np.zeros(length, dtype=int)
+    res[start_at:] = 1
+    return res
+
+def square_signals(length, ones_intervals):
+    res = np.zeros(length, dtype=int)
+    for start, end in ones_intervals:
+        res[start:end] = 1
+    
+    return res
+
+def freq_square_filter(signal, square_intervals):
+    return np.abs(ifft(fft(signal) * square_signals(len(signal), square_intervals)))
+
+def moving_average_filter(signal, window):
+    return convolve(signal, np.ones(window)/window, mode='same', method='direct')
