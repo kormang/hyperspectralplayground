@@ -2,6 +2,7 @@
 # pylint: disable=invalid-name
 import numpy as np
 import scipy
+import math
 
 # In python, we don't compute continuum on many signatures.
 # That would be too slow. And also it is less important.
@@ -35,18 +36,18 @@ def pycontinuum(signature, wavelengths, continuum = None):
             if signature[j] < intersection:
                 break # J does not belong.
             k += 1
-        
+
         if k == n:
             # j belongs.
-            
+
             # We need to fill the values in continuum between i and j.
             qoef = (signature[j] - signature[i]) / (wavelengths[j] - wavelengths[i])
             for t in range(i + 1, j):
                 continuum[t] = qoef * (wavelengths[t] - wavelengths[i]) + signature[i]
-            
+
             # For j, fill exact value.
             continuum[j] = signature[j]
-            
+
             # Last point that belongs is not j.
             i = j
             # Next, check j + 1
@@ -80,18 +81,18 @@ def pypartial_continuum(signature, wavelengths, strict_range, continuum = None):
             if signature[j] < intersection:
                 break # J does not belong.
             k += 1
-        
+
         if k == cont_limit:
             # j belongs.
-            
+
             # We need to fill the values in continuum between i and j.
             qoef = (signature[j] - signature[i]) / (wavelengths[j] - wavelengths[i])
             for t in range(i + 1, j):
                 continuum[t] = qoef * (wavelengths[t] - wavelengths[i]) + signature[i]
-            
+
             # For j, fill exact value.
             continuum[j] = signature[j]
-            
+
             # Last point that belongs is not j.
             i = j
             # Next, check j + 1
@@ -126,11 +127,11 @@ def pypartial_continuum_points(signature, wavelengths, strict_range):
             if signature[j] < intersection:
                 break # J does not belong.
             k += 1
-        
+
         if k == cont_limit:
             # j belongs.
             points.append((wavelengths[j], signature[j]))
-            
+
             # Last point that belongs is not j.
             i = j
             # Next, check j + 1
@@ -151,6 +152,48 @@ def pycontinuum_points(signature, wavelengths):
         Returns list of points (i, signature[i]) that belong to continuum.
     """
     return pypartial_continuum_points(signature, wavelengths, len(signature))
+
+def pypartial_continuum_points_angle(signature, wavelengths, tolerance_angle):
+    """
+        Calculates partial continuum, but checks angles instead of intersection.
+        That enables us to use parameter tolerance_angle, to loosen strictness of
+        convexity. Parameter tolerance_angle is given in radians, and even if some points goes
+        below convexity line, at is still candidate if it is not more than tolerance_angle.
+    """
+    points = [(wavelengths[0], signature[0])]
+    n = len(signature)
+    i = 0 # Points to last point that belongs to the curve.
+    j = 1 # Points to current potential point.
+    while j < n:
+        # Check all points in front of j,
+        # to make sure it belongs to the curve.
+        k = j + 1
+        while k < n:
+            qoef_k = (signature[k] - signature[i]) / (wavelengths[k] - wavelengths[i])
+            qoef_j = (signature[j] - signature[i]) / (wavelengths[j] - wavelengths[i])
+            if qoef_k > qoef_j:
+                # J might not belong, but lets check if we can tolerate that.
+                if math.atan(qoef_k) - math.atan(qoef_j) > tolerance_angle:
+                    break # J does not belong for sure.
+            k += 1
+
+        if k == n:
+            # j belongs.
+            points.append((wavelengths[j], signature[j]))
+
+            # Last point that belongs is not j.
+            i = j
+            # Next, check j + 1
+            j = j + 1
+        else:
+            # j does not belong.
+            # Maybe k does, so it is next potential point.
+            # We don't use j + 1, because we skip al the way to k,
+            # since, all points between j and k are "below" j,
+            # so must be "below" k too. "Below" means, j is above line
+            # connecting them and i.
+            j = k
+    return points
 
 def interpolate_points(points, wavelengths, kind='linear'):
     xp = [x for x, _ in points]

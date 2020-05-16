@@ -23,7 +23,7 @@ def show_centers(centers, title):
         pylab.plot(centers[i])
     pylab.title(title)
     pylab.show()
-    
+
 def show_histogram(hist_values, title):
     pylab.figure()
     pylab.hist(range(len(hist_values)), len(hist_values), weights=hist_values)
@@ -56,10 +56,22 @@ def draw_common_vert_plots(graphs):
     numplots = len(graphs)
     fig = pylab.figure()
     fig.set_size_inches(3*4, 2*4)
-    
+
     for i in range(numplots):
         pylab.subplot(numplots, 1, i+1)
         pylab.xticks(graphs[i]['xticks'])
         pylab.plot(graphs[i]['x'], graphs[i]['y'])
+
+    pylab.show()
+
+def draw_ontop(graphs, xs, colors = None):
+    fig = pylab.figure()
+
+    if colors is None:
+        for g in graphs:
+            pylab.plot(xs, g)
+    else:
+        for i, g in enumerate(graphs):
+            pylab.plot(xs, g, color=colors[i])
 
     pylab.show()

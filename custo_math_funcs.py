@@ -1,6 +1,7 @@
 import numpy as np
 import math
 from math_utils import clamp
+from scipy import optimize
 
 #### 2nd degree bsplines
 
@@ -12,14 +13,14 @@ def solve_quadratic_equation(a, b, c):
         return solve_linear_equation(b, c)
 
     detr = b*b - 4*a*c
-    
+
     assert (detr >= 0), 'Failed to calculate bspline coordinate - determinant < 0!'
-    
-    result = (-b + math.sqrt(detr)) / (2*a)    
+
+    result = (-b + math.sqrt(detr)) / (2*a)
 
     if result < 0 or result > 1:
         result = (-b - math.sqrt(detr)) / (2*a)
-    
+
     assert (result >= 0 and result <= 1), 'Failed to calculate bspline coordinate - all solutions out of [0, 1]'
     return result
 
@@ -27,7 +28,7 @@ def bspline2t_x(x, p0, p1, p2):
     a = p0[0] - 2*p1[0] + p2[0]
     b = -2*p0[0] + 2*p1[0]
     c = p0[0] + p1[0] - 2*x
-    
+
     return solve_quadratic_equation(a, b, c)
 
 def bspline2y_t(t, p0, p1, p2):
@@ -60,14 +61,14 @@ def bspline2_from_points(points, xs):
         Calculate y values corresponding to x values for 2nd degree b-spline, defined by points.
     """
     segments = len(points)
-    
+
     # Calculate points where segments stitch together.
     # Also includes first point and last point.
     x_stitching_points = [xs[0]]
     for s in range(segments):
         p0, p1, p2 = bspline2_get_points_on_segment(s, points)
         x_stitching_points.append(bspline2x_t(1.0, p0, p1, p2))
-    
+
     # Fill results with pairs (i, y(i)),
     # where i is x coordinate and also index in signature array,
     # and y(i) is respective  y coordinate of bspline2.
@@ -79,7 +80,7 @@ def bspline2_from_points(points, xs):
         while x < x_stitching_points[s + 1]:
             results[filled_i] = bspline2y_x(x, p0, p1, p2)
             filled_i += 1
-            x = xs[filled_i]   
+            x = xs[filled_i]
 
     # Last stitching (accually not stitching, since it is the last one of stitching points)
     # of the last segment is not included because of non-inclusive ranges.
@@ -108,28 +109,28 @@ def solve_trig01_cubic(p, q, conv_term):
     g = 2*math.sqrt(-p/3)
     h = math.acos(3*q*math.sqrt(-3/p)/(2*p))/3
     j = 2*math.pi/3
-    
+
     for k in range(3):
         r = g*math.cos(h - j*k)
         r = round(r - conv_term, 8)
         if r >= 0.0 and r <= 1.0:
             return r
-    
+
     assert (False), 'Trigonometric formula gave us no valid solution'
 
 def solve_cubic_equation(a, b, c, d):
     if abs(a) <= 1e-10:
         return solve_quadratic_equation(b, c, d)
-    
+
     # Solving ax^3 + bx^2 + cx + d = 0.
     # Transform to depressed cubic: t^3 + pt + q = 0.
     p = (3*a*c - b*b) / (3*a*a)
     q = (2*b*b*b - 9*a*b*c + 27*a*a*d) / (27*a*a*a)
-    
+
     detr = -(4*p*p*p + 27*q*q)
-    
+
     conv_term = b / (3*a)
-    
+
     if detr < 0:
         # There is only one real root. Use Cardano's method.
         t = solve_cardano_cubic(p, q)
@@ -155,19 +156,27 @@ def solve_cubic_equation(a, b, c, d):
         assert (result >= 0.0 and result <= 1.0), 'Could not find valid value for spline parameter.'
         return result
 
+def solve_cubic_equation_numerically(a, b, c, d):
+    def f(x):
+        return a*x**3 + b*x**2 + c*x + d, \
+            3*a*x**2 + 2*b*x + c
+
+    result = optimize.root_scalar(f, fprime=True, x0 = 0.5, method='newton').root
+    assert (result >= 0.0 and result <= 1.0), 'Numeric method gave us invalid value for spline parameter. ' + str(result)
+    return result
 
 def bspline3t_x(x, p0, p1, p2, p3):
     a = -p0[0] + 3*p1[0] - 3*p2[0] + p3[0]
     b = 3*p0[0] - 6*p1[0] + 3*p2[0]
     c = -3*p0[0] + 3*p2[0]
     d = p0[0] + 4*p1[0] + p2[0] - 6*x
-       
+
     t = solve_cubic_equation(a, b, c, d)
-    
+
     # Check solution:
     rx = bspline3x_t(t, p0, p1, p2, p3)
     assert (abs(rx - x) <= 1e-1), 'Solution ' + str(t) + ' is not valid! [' + str(t) + '] ' + str(rx) + ' != ' + str(x)
-    
+
     return t
 
 def bspline3y_t(t, p0, p1, p2, p3):
@@ -179,8 +188,14 @@ def bspline3y_t(t, p0, p1, p2, p3):
     return y
 
 def bspline3y_x(x, p0, p1, p2, p3):
-    t = bspline3t_x(x, p0, p1, p2, p3)
-    return bspline3y_t(t, p0, p1, p2, p3)
+    try:
+        t = bspline3t_x(x, p0, p1, p2, p3)
+        return bspline3y_t(t, p0, p1, p2, p3)
+    except:
+        print(p0, p1, p2, p3)
+        print(x)
+        print(bspline3x_t(0.0, p0, p1, p2, p3), bspline3x_t(1.0, p0, p1, p2, p3))
+        assert False, "jebiga"
 
 def bspline3x_t(t, p0, p1, p2, p3):
     q0 = (1 - t)*(1 - t)*(1 - t)
@@ -203,14 +218,14 @@ def bspline3_from_points(points, xs):
         Calculate y values corresponding to x values for 3rd degree b-spline, defined by points.
     """
     segments = len(points) + 1
-    
+
     # Calculate points where segments stitch together.
     # Also includes first point and last point.
     x_stitching_points = [xs[0]]
     for s in range(segments):
         p0, p1, p2, p3 = bspline3_get_points_on_segment(s, points)
         x_stitching_points.append(bspline3x_t(1.0, p0, p1, p2, p3))
-    
+
     # Fill results with pairs (i, y(i)),
     # where i is x coordinate and also index in signature array,
     # and y(i) is respective  y coordinate of bspline3.
@@ -222,13 +237,15 @@ def bspline3_from_points(points, xs):
         while x < x_stitching_points[s + 1]:
             results[filled_i] = bspline3y_x(x, p0, p1, p2, p3)
             filled_i += 1
-            x = xs[filled_i]        
+            x = xs[filled_i]
 
     # Last stitching (accually not stitching, since it is the last one of stitching points)
     # of the last segment is not included because of non-inclusive ranges.
     # We still need it.
-    p0, p1, p2, p3 = bspline3_get_points_on_segment(segments - 1, points)
-    x = xs[-1]
-    results[filled_i] = bspline3y_x(x, p0, p1, p2, p3)
-
+    # We can calculate it, but that might be inprecise.
+    # p0, p1, p2, p3 = bspline3_get_points_on_segment(segments - 1, points)
+    # x = xs[-1]
+    # results[filled_i] = bspline3y_x(x, p0, p1, p2, p3)
+    # Just use known value.
+    results[filled_i] = points[-1][1]
     return np.array(results)
