@@ -47,3 +47,11 @@ def interpolate_invalid(signature, kind='slinear'):
         ys.append(ys[-1])
     f = scipy.interpolate.interp1d(xs, ys, kind=kind, assume_sorted=True)
     return f(full_xs)
+
+def lower_bound(array, min_val):
+    ret = np.argmax(array >= min_val)
+    return ret if array[ret] >= min_val else len(array)
+
+def upper_bound(array, max_val):
+    ret = np.argmax(array > max_val)
+    return ret if array[ret] > max_val else len(array)
