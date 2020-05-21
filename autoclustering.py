@@ -9,7 +9,7 @@ from math_utils import normalized
 def find_related_clusters2(image, min_correlation, **kwargs):
     """
         Primitive algorithm that scans image left to right, top to buttom,
-        and assigns pixels/signatures to clusters. When, during scaning it finds
+        and assigns pixels/spectra to clusters. When, during scaning it finds
         pixel that is less than min_correlation correlated with all already found centers,
         algorithm assigns that pixel to new cluster, and that pixel is also new center.
         if kwarg start_centers is not present, then starting center is first pixel.
@@ -17,7 +17,7 @@ def find_related_clusters2(image, min_correlation, **kwargs):
         cluster. However, these centers are good potetial starting centers
         to apply K-Means.
         Returns pair of (map of cluster indices, centers).
-        Centers have shape (num_centers, signature_length).
+        Centers have shape (num_centers, spectrum_length).
     """
     from spectral.algorithms.spymath import has_nan, NaNValueError
 
@@ -78,7 +78,7 @@ def find_mincorr_centers(values, centers):
         that is, value that has smallest sum of cosines between itself
         and each of the centers.
         Values and centers should be normalized.
-        Values are of shape (N, signature_length), and centers (sig_len, N).
+        Values are of shape (N, spectrum_length), and centers (spec_len, N).
         Returns pair of value and its index.
     """
     minci = np.argmin(np.sum(np.matmul(values, centers), axis=1))
@@ -149,16 +149,16 @@ def find_mincorr_from_center(values, centers):
 
 def find_maxdist_clusters(image, min_correlation):
     """
-        First finds signature that is least correlated with the average.
+        First finds spectrum that is least correlated with the average.
         It becomes first cluster center.
         Then finds next cluster center, the one that is least correlated
         with average (center) of existing cluster centers.
-        Then the steps are repeated, until there is no more unclassified signatures.
-        After each iteration all signatures that have correlation with new center
+        Then the steps are repeated, until there is no more unclassified spectra.
+        After each iteration all spectra that have correlation with new center
         equal or greater than min_correlation are clussified to belong to this new cluster,
         and excluded from further classification.
         Returns pair of map of indices of clusters,
-        and cluster centers of shape (N, signature_length).
+        and cluster centers of shape (N, spectrum_length).
     """
     from spectral.algorithms.spymath import has_nan, NaNValueError
 

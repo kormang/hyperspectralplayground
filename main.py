@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+spec_len# -*- coding: utf-8 -*-
 # pylint: disable=invalid-name
 from __future__ import print_function
 from spectral import *
@@ -562,23 +562,23 @@ view = show_classes(subclass_map - 1)
 
 water_class = class_map[406, 151]
 inds_of_water = np.where(class_map == water_class)
-sigs_of_water = data[inds_of_water]
+spectra_of_water = data[inds_of_water]
 subclasses_of_water = np.unique(subclass_map[inds_of_water])
 
-signatures = np.empty((subclasses_of_water.shape[0], data.shape[2]))
+spectra = np.empty((subclasses_of_water.shape[0], data.shape[2]))
 for i in range(subclasses_of_water.shape[0]):
     inds_of_subclass = np.where(subclass_map == subclasses_of_water[i])
     print( (inds_of_subclass[0][0], inds_of_subclass[1][0]))
-    signatures[i] = data[inds_of_subclass[0][0], inds_of_subclass[1][0]]
+    spectra[i] = data[inds_of_subclass[0][0], inds_of_subclass[1][0]]
 
-show_centers(signatures, u'Signatures of water subclasses')
+show_centers(spectra, u'Spectra of water subclasses')
 
 counts_per_clusters = np.empty((centers.shape[0],), dtype=int)
 for i in range(centers.shape[0]):
     counts_per_clusters[i] = np.count_nonzero(class_map == i)
 
 print('counts per clusters: ', counts_per_clusters)
-show_histogram(counts_per_clusters, 'Number of signatures per cluster')
+show_histogram(counts_per_clusters, 'Number of spectra per cluster')
 
 show_centers(centers, "Final centers")
 

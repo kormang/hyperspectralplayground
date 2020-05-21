@@ -47,11 +47,11 @@ print data.dtype
 #for i in range(data.shape[2]):
 #    save_rgb('./aerodrom_channels/' + str(i+1) + '.png', data[:, :, i])
 
-signatures = np.empty((5, data.shape[2]))
+spectra = np.empty((5, data.shape[2]))
 labels = [u"вода", u"загрязнённая вода", u"бетон", u"болото", u"почва"]
 positions = [(863, 369), (999, 519), (1199, 422), (1056, 352), (357, 585)]
 for i in range(len(positions)):
-    signatures[i] = data[positions[i][0], positions[i][1]]
+    spectra[i] = data[positions[i][0], positions[i][1]]
 
-show_centers(signatures, u'Сигнатуры некоторых точек изображения', labels)
+show_centers(spectra, u'Сигнатуры некоторых точек изображения', labels)
 

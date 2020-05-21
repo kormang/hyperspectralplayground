@@ -80,41 +80,41 @@ continuum_generic_impl(PyObject *self, PyObject *args,
     if (PyArray_NDIM(ain) == 1) {
       double* datain = (double*)PyArray_DATA(ain);
       double* dataout = (double*)PyArray_DATA(aout);
-      Py_ssize_t signature_length = PyArray_SHAPE(ain)[0];
-      if (signature_length != PyArray_SHAPE(awl)[0]) {
+      Py_ssize_t spectrum_length = PyArray_SHAPE(ain)[0];
+      if (spectrum_length != PyArray_SHAPE(awl)[0]) {
           PyErr_SetString(PyExc_ValueError,
               "In continuum_generic_impl: wavelengths array has incorrect length.");
           return Py_None;
       }
-      continuum_processing_f(datain, dataout, dataawl, signature_length);
+      continuum_processing_f(datain, dataout, dataawl, spectrum_length);
     } else {
-      Py_ssize_t num_signatures = PyArray_SHAPE(ain)[0];
-      Py_ssize_t signature_length = PyArray_SHAPE(ain)[1];
-      if (signature_length != PyArray_SHAPE(awl)[0]) {
+      Py_ssize_t num_spectra = PyArray_SHAPE(ain)[0];
+      Py_ssize_t spectrum_length = PyArray_SHAPE(ain)[1];
+      if (spectrum_length != PyArray_SHAPE(awl)[0]) {
           PyErr_SetString(PyExc_ValueError,
               "In continuum_generic_impl: wavelengths array has incorrect length.");
           return Py_None;
       }
 
       #pragma omp parallel for
-      for (Py_ssize_t i = 0; i < num_signatures; ++i) {
+      for (Py_ssize_t i = 0; i < num_spectra; ++i) {
         double* datain = (double*)(PyArray_DATA(ain)
           + i * PyArray_STRIDES(ain)[0]);
         double* dataout = (double*)(PyArray_DATA(aout)
           + i * PyArray_STRIDES(aout)[0]);
-        continuum_processing_f(datain, dataout, dataawl, signature_length);
+        continuum_processing_f(datain, dataout, dataawl, spectrum_length);
       }
     }
 
     return Py_None;
 }
 
-/* Function accepting 1d array and returning continuum signature. */
+/* Function accepting 1d array and returning continuum spectrum. */
 
 PyDoc_STRVAR(continuum_continuum_doc,
-"continuum(signature)\n\
+"continuum(spectrum)\n\
 \n\
-Return continuum of the signature.");
+Return continuum of the spectrum.");
 
 static PyObject *
 continuum_continuum(PyObject *self, PyObject *args)
@@ -122,12 +122,12 @@ continuum_continuum(PyObject *self, PyObject *args)
     return continuum_generic_impl(self, args, &continuum);
 }
 
-/* Function accepting 1d array and returning continuum removed signature. */
+/* Function accepting 1d array and returning continuum removed spectrum. */
 
 PyDoc_STRVAR(continuum_continuum_removed_doc,
-"continuum_removed(signature)\n\
+"continuum_removed(spectrum)\n\
 \n\
-Return continuum removed signature.");
+Return continuum removed spectrum.");
 
 static PyObject *
 continuum_continuum_removed(PyObject *self, PyObject *args)

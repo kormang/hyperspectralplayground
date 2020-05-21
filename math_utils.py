@@ -21,33 +21,33 @@ def cluster_histogram(centers, class_map):
         hist[i] = np.count_nonzero(class_map == i)
     return hist
 
-def find_max_diff_l2(sigs, from_sig):
-    diff = sigs - from_sig
+def find_max_diff_l2(spectra, from_spectrum):
+    diff = spectra - from_spectrum
     distances = np.einsum('ij,ij->i', diff, diff, optimize='optimal')
     index_of_max = np.argmax(distances)
-    return sigs[index_of_max]
+    return spectra[index_of_max]
 
-def find_max_diff_l1(sigs, from_sig):
-    distances = np.sum(np.abs(sigs - from_sig), axis=1)
+def find_max_diff_l1(spectra, from_spectrum):
+    distances = np.sum(np.abs(spectra - from_spectrum), axis=1)
     index_of_max = np.argmax(distances)
-    return sigs[index_of_max]
+    return spectra[index_of_max]
 
-def find_max_diff_angle(sigs, from_sig):
-    norm_sigs = normalized(sigs)
-    norm_from_sig = from_sig / np.linalg.norm(from_sig)
-    cosines = np.dot(norm_sigs, norm_from_sig)
+def find_max_diff_angle(spectra, from_spectrum):
+    norm_spectra = normalized(spectra)
+    norm_from_spectrum = from_spectrum / np.linalg.norm(from_spectrum)
+    cosines = np.dot(norm_spectra, norm_from_spectrum)
     index_of_max = np.argmin(cosines)
-    return sigs[index_of_max]
+    return spectra[index_of_max]
 
-def find_with_max_norm2(sigs):
-    norms = np.linalg.norm(sigs, 2, 1)
+def find_with_max_norm2(spectra):
+    norms = np.linalg.norm(spectra, 2, 1)
     index_of_max = np.argmax(norms)
-    return sigs[index_of_max]
+    return spectra[index_of_max]
 
-def find_with_max_norm1(sigs):
-    norms = np.sum(np.abs(sigs), axis=1)
+def find_with_max_norm1(spectra):
+    norms = np.sum(np.abs(spectra), axis=1)
     index_of_max = np.argmax(norms)
-    return sigs[index_of_max]
+    return spectra[index_of_max]
 
 def clamp(n, smallest, largest):
     return max(smallest, min(n, largest))
@@ -63,7 +63,7 @@ def square_signals(length, ones_intervals):
     res = np.zeros(length, dtype=int)
     for start, end in ones_intervals:
         res[start:end] = 1
-    
+
     return res
 
 def freq_square_filter(signal, square_intervals):

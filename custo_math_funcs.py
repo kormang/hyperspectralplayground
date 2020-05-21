@@ -70,7 +70,7 @@ def bspline2_from_points(points, xs):
         x_stitching_points.append(bspline2x_t(1.0, p0, p1, p2))
 
     # Fill results with pairs (i, y(i)),
-    # where i is x coordinate and also index in signature array,
+    # where i is x coordinate and also index in spectrum array,
     # and y(i) is respective  y coordinate of bspline2.
     results = np.empty(len(xs))
     filled_i = 0
@@ -227,7 +227,7 @@ def bspline3_from_points(points, xs):
         x_stitching_points.append(bspline3x_t(1.0, p0, p1, p2, p3))
 
     # Fill results with pairs (i, y(i)),
-    # where i is x coordinate and also index in signature array,
+    # where i is x coordinate and also index in spectrum array,
     # and y(i) is respective  y coordinate of bspline3.
     results = np.empty(len(xs))
     filled_i = 0

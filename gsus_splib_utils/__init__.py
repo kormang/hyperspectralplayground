@@ -6,10 +6,10 @@ from spectral.io.spyfile import find_file_path
 from spectral import *
 
 class SpectralData:
-    def __init__(self, signature = None, libname = None,
+    def __init__(self, spectrum = None, libname = None,
                  record = None, description = None, spectrometer = None,
                  purity = None, measurement_type = None, spectrometer_data = None):
-        self.signature = signature
+        self.spectrum = spectrum
         self.libname = libname
         self.record = record
         self.description = description
@@ -25,11 +25,11 @@ class SpectralData:
                                                self.purity, self.measurement_type)
 
     def __repr__(self):
-        sig_lines = ['{:.5E}'.format(s) for s in self.signature]
-        return self.header() + '\n' + ('\n'.join(sig_lines))
+        spectra_lines = ['{:.5E}'.format(s) for s in self.spectrum]
+        return self.header() + '\n' + ('\n'.join(spectra_lines))
 
     def __str__(self):
-        return self.header() + ' \t {} channels'.format(len(self.signature))
+        return self.header() + ' \t {} channels'.format(len(self.spectrum))
 
     @staticmethod
     def parse_header(header_line):
@@ -61,28 +61,28 @@ class SpectralData:
             libname, record, description, spectrometer, purity, measurment_type = \
                 SpectralData.parse_header(header_line.strip())
 
-            signature = []
+            spectrum = []
             for line in f:
                 try:
-                    signature.append(float(line.strip()))
+                    spectrum.append(float(line.strip()))
                 except:
                     pass
 
             spectrometer_data = SpectrometerData.get_by_name(spectrometer)
 
-            return SpectralData(np.array(signature),
+            return SpectralData(np.array(spectrum),
                                 libname, record, description,
                                 spectrometer, purity, measurment_type,
                                 spectrometer_data)
 
     def replace_invalid(self, value):
-        self.signature[self.signature < 0.0] = value
+        self.spectrum[self.spectrum < 0.0] = value
         return self
 
     def interpolate_invalid(self, kind='slinear'):
-        full_xs = list(range(len(self.signature)))
-        xs = [x for x, y in zip(full_xs, self.signature) if y > 0.0]
-        ys = [y for y in self.signature if y > 0.0]
+        full_xs = list(range(len(self.spectrum)))
+        xs = [x for x, y in zip(full_xs, self.spectrum) if y > 0.0]
+        ys = [y for y in self.spectrum if y > 0.0]
         if xs[0] > full_xs[0]:
             xs.insert(0, full_xs[0])
             ys.insert(0, ys[0])
@@ -90,12 +90,12 @@ class SpectralData:
             xs.append(full_xs[-1])
             ys.append(ys[-1])
         f = scipy.interpolate.interp1d(xs, ys, kind=kind, assume_sorted=True)
-        self.signature = f(full_xs)
+        self.spectrum = f(full_xs)
         return self
 
     def resample_as(self, spectrometer_name, with_fixed_dest = False):
         """
-            Returns signature resampled to different spectrometer.
+            Returns spectrum resampled to different spectrometer.
         """
         dest = SpectrometerData.get_by_name(spectrometer_name)
         dest_wl = dest.wavelengths
@@ -108,16 +108,16 @@ class SpectralData:
 
     def resample_at(self, dest_wl, dest_bw = None):
         """
-            Returns signature resampled to different spectrometer.
+            Returns spectrum resampled to different spectrometer.
         """
         resampler = BandResampler(self.spectrometer_data.wavelengths, dest_wl,
                                   self.spectrometer_data.bandwidths, dest_bw)
-        return resampler(self.signature)
+        return resampler(self.spectrum)
 
 
     def interpolate_as(self, spectrometer_name, with_fixed_dest = True, kind='quadratic'):
         """
-            Returns signature interpoleted at wavelengths of different spectrometer,
+            Returns spectrum interpoleted at wavelengths of different spectrometer,
             based on wavelengths and reflectances of original.
         """
         dest = SpectrometerData.get_by_name(spectrometer_name)
@@ -129,17 +129,17 @@ class SpectralData:
 
     def interpolate_at(self, dest_wl, kind='quadratic'):
         """
-            Returns signature interpoleted at specified wavelengths,
+            Returns spectrum interpoleted at specified wavelengths,
             based on wavelengths and reflectances of original.
         """
         xs = self.wavelengths()
-        ys = self.signature
+        ys = self.spectrum
         f = scipy.interpolate.interp1d(xs, ys, kind=kind, assume_sorted=True, fill_value='extrapolate')
         return f(dest_wl)
 
     def in_range(self, min_wl, max_wl):
         """
-            Return wavelengths and signature part between min wavelength and max wavelength.
+            Return wavelengths and spectrum part between min wavelength and max wavelength.
         """
         src_wavelengths = self.spectrometer_data.wavelengths
         min_wl = max(src_wavelengths[0], min_wl)
@@ -147,19 +147,19 @@ class SpectralData:
         min_index = np.argmax(src_wavelengths >= min_wl)
         max_index = np.argmax(src_wavelengths > max_wl)
         range_wl = src_wavelengths[min_index:max_index]
-        range_sig = self.signature[min_index:max_index]
-        return range_wl, range_sig
+        range_spec = self.spectrum[min_index:max_index]
+        return range_wl, range_spec
 
     def in_range_of(self, spectrometer_name):
         """
-            Return wavelengths and signature part that overlaps with other spectrometer.
+            Return wavelengths and spectrum part that overlaps with other spectrometer.
         """
         dest_wavelengths = SpectrometerData.get_by_name(spectrometer_name).wavelengths
         return self.in_range(dest_wavelengths[0], dest_wavelengths[-1])
 
     def fix(self):
         self.interpolate_invalid()
-        self.signature = self.resample_as(self.spectrometer, True)
+        self.spectrum = self.resample_as(self.spectrometer, True)
         self.fixed = True
         self._wavelengths = np.sort(self.spectrometer_data.wavelengths)
         return self
@@ -182,7 +182,7 @@ class SpectrometerData:
                                                 self.spectrometer_name, self.description)
 
     def __repr__(self):
-        sig_lines = ['{:.5E}'.format(s) for s in self.signature]
+        spectra_lines = ['{:.5E}'.format(s) for s in self.spectrum]
         return self.header() + '\n' + ('\n'.join(wavelengths))
 
     def __str__(self):
