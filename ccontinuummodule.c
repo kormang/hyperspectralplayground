@@ -18,7 +18,7 @@
 
 #include "Python.h"
 #include "numpy/arrayobject.h"
-#include "continuum.h"
+#include "ccontinuum.h"
 
 static PyObject *ErrorObject;
 
@@ -96,7 +96,7 @@ continuum_generic_impl(PyObject *self, PyObject *args,
           return Py_None;
       }
 
-      #pragma omp parallel for
+      //#pragma omp parallel for
       for (Py_ssize_t i = 0; i < num_spectra; ++i) {
         double* datain = (double*)(PyArray_DATA(ain)
           + i * PyArray_STRIDES(ain)[0]);
@@ -111,36 +111,36 @@ continuum_generic_impl(PyObject *self, PyObject *args,
 
 /* Function accepting 1d array and returning continuum spectrum. */
 
-PyDoc_STRVAR(continuum_continuum_doc,
+PyDoc_STRVAR(ccontinuum_continuum_doc,
 "continuum(spectrum)\n\
 \n\
 Return continuum of the spectrum.");
 
 static PyObject *
-continuum_continuum(PyObject *self, PyObject *args)
+ccontinuum_continuum(PyObject *self, PyObject *args)
 {
     return continuum_generic_impl(self, args, &continuum);
 }
 
 /* Function accepting 1d array and returning continuum removed spectrum. */
 
-PyDoc_STRVAR(continuum_continuum_removed_doc,
+PyDoc_STRVAR(ccontinuum_continuum_removed_doc,
 "continuum_removed(spectrum)\n\
 \n\
 Return continuum removed spectrum.");
 
 static PyObject *
-continuum_continuum_removed(PyObject *self, PyObject *args)
+ccontinuum_continuum_removed(PyObject *self, PyObject *args)
 {
   return continuum_generic_impl(self, args, &continuum_removed);
 }
 
 /* List of functions defined in the module */
 
-static PyMethodDef continuum_methods[] = {
-    {"continuum_removed", continuum_continuum_removed, METH_VARARGS,
-      continuum_continuum_removed_doc},
-    {"continuum", continuum_continuum, METH_VARARGS, continuum_continuum_doc},
+static PyMethodDef ccontinuum_methods[] = {
+    {"continuum_removed", ccontinuum_continuum_removed, METH_VARARGS,
+      ccontinuum_continuum_removed_doc},
+    {"continuum", ccontinuum_continuum, METH_VARARGS, ccontinuum_continuum_doc},
     {NULL,              NULL}           /* sentinel */
 };
 
@@ -149,7 +149,7 @@ PyDoc_STRVAR(module_doc,
 
 
 static int
-continuum_exec(PyObject *m)
+ccontinuum_exec(PyObject *m)
 {
     /* Slot initialization is subject to the rules of initializing globals.
        C99 requires the initializers to be "address constants".  Function
@@ -195,29 +195,28 @@ continuum_exec(PyObject *m)
     return -1;
 }
 
-static struct PyModuleDef_Slot continuum_slots[] = {
-    {Py_mod_exec, continuum_exec},
+static struct PyModuleDef_Slot ccontinuum_slots[] = {
+    {Py_mod_exec, ccontinuum_exec},
     {0, NULL},
 };
 
-static struct PyModuleDef continuummodule = {
+static struct PyModuleDef ccontinuummodule = {
     PyModuleDef_HEAD_INIT,
-    "continuum",
+    "ccontinuum",
     module_doc,
     0,
-    continuum_methods,
-    continuum_slots,
+    ccontinuum_methods,
+    ccontinuum_slots,
     NULL,
     NULL,
     NULL
 };
 
-/* Export function for the module (*must* be called PyInit_continuum) */
+/* Export function for the module (*must* be called PyInit_ccontinuum) */
 
 PyMODINIT_FUNC
-PyInit_continuum(void)
+PyInit_ccontinuum(void)
 {
     import_array();
-    return PyModuleDef_Init(&continuummodule);
-    fprintf(stderr, "array imported, valjda");
+    return PyModuleDef_Init(&ccontinuummodule);
 }

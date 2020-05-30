@@ -1,7 +1,7 @@
 from distutils.core import setup, Extension
 import numpy as np
 
-module1 = Extension('continuum',
+module1 = Extension('ccontinuum',
                     define_macros = [('MAJOR_VERSION', '1'),
                                      ('MINOR_VERSION', '0')],
                     include_dirs = [
@@ -11,15 +11,15 @@ module1 = Extension('continuum',
                     libraries = ['gomp'],
                     library_dirs = ['/usr/local/lib'],
                     extra_compile_args = ['-fopenmp'],
-                    sources = ['continuummodule.c', 'continuum.c'])
+                    sources = ['ccontinuummodule.c', 'ccontinuum.c'])
 
-setup (name = 'Continuum',
+setup (name = 'CContinuum',
        version = '1.0',
-       description = 'Continuum processing for HSI',
+       description = 'C continuum processing for HSI',
        author = 'Marko Ivanovic',
        author_email = 'ivanovic.marko@yandex.com',
        url = 'https://docs.python.org/extending/building',
        long_description = '''
-Continuum processing for HSI.
+C continuum processing for HSI.
 ''',
        ext_modules = [module1])

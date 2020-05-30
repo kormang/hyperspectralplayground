@@ -60,6 +60,7 @@ def bspline2_from_points(points, xs):
     """
         Calculate y values corresponding to x values for 2nd degree b-spline, defined by points.
     """
+    points = list(zip(points[0], points[1]))
     segments = len(points)
 
     # Calculate points where segments stitch together.
@@ -217,6 +218,7 @@ def bspline3_from_points(points, xs):
     """
         Calculate y values corresponding to x values for 3rd degree b-spline, defined by points.
     """
+    points = list(zip(points[0], points[1]))
     segments = len(points) + 1
 
     # Calculate points where segments stitch together.
