@@ -23,7 +23,7 @@
 static PyObject *ErrorObject;
 
 /*
-  Check that PyArrayObject is a double (Float) type and a 1d, or 2d array.
+  Check that PyArrayObject is a double (Float) type and a 1d, or 2d, or 3d array.
   Return 1 if an error and raise exception.
 */
 static int check_type(PyArrayObject* a, int min_dim, int max_dim)  {
@@ -41,11 +41,15 @@ static int check_type(PyArrayObject* a, int min_dim, int max_dim)  {
 */
 static int check_same_shapes(PyArrayObject* a, PyArrayObject* b) {
   if (PyArray_NDIM(a) != PyArray_NDIM(b)) {
+    PyErr_SetString(PyExc_ValueError,
+	"In check_same_shapes: arrays must have same number of dimensions.");
     return 1;
   }
   Py_ssize_t ndims = PyArray_NDIM(a);
   for (int i = 0; i < ndims; ++i) {
     if (PyArray_SHAPE(a)[i] != PyArray_SHAPE(b)[i]) {
+      PyErr_SetString(PyExc_ValueError,
+        "In check_same_shapes: arrays must have same number of dimensions.");
       return 1;
     }
   }
@@ -55,7 +59,7 @@ static int check_same_shapes(PyArrayObject* a, PyArrayObject* b) {
 
 static PyObject *
 continuum_generic_impl(PyObject *self, PyObject *args,
-  void (*continuum_processing_f)(double*, double*, double*, size_t))
+  void (*continuum_processing_f)(double*, double*, double*, size_t*, size_t))
 {
     PyArrayObject* ain;
     PyArrayObject* aout;
@@ -69,8 +73,8 @@ continuum_generic_impl(PyObject *self, PyObject *args,
     if (NULL == aout)  return Py_None;
     if (NULL == awl)  return Py_None;
 
-    if (check_type(ain, 1, 2)) return Py_None;
-    if (check_type(aout, 1, 2)) return Py_None;
+    if (check_type(ain, 1, 3)) return Py_None;
+    if (check_type(aout, 1, 3)) return Py_None;
     if (check_type(awl, 1, 1)) return Py_None;
 
     if (check_same_shapes(ain, aout)) return Py_None;
@@ -86,8 +90,10 @@ continuum_generic_impl(PyObject *self, PyObject *args,
               "In continuum_generic_impl: wavelengths array has incorrect length.");
           return Py_None;
       }
-      continuum_processing_f(datain, dataout, dataawl, spectrum_length);
-    } else {
+      size_t* indices = malloc(sizeof(size_t) * spectrum_length);
+      continuum_processing_f(datain, dataout, dataawl, indices, spectrum_length);
+      free(indices);
+    } else if (PyArray_NDIM(ain) == 2) {
       Py_ssize_t num_spectra = PyArray_SHAPE(ain)[0];
       Py_ssize_t spectrum_length = PyArray_SHAPE(ain)[1];
       if (spectrum_length != PyArray_SHAPE(awl)[0]) {
@@ -96,14 +102,49 @@ continuum_generic_impl(PyObject *self, PyObject *args,
           return Py_None;
       }
 
-      //#pragma omp parallel for
+      #pragma omp parallel
+      {
+      size_t* indices = malloc(sizeof(size_t) * spectrum_length);
+
+      #pragma omp for
       for (Py_ssize_t i = 0; i < num_spectra; ++i) {
         double* datain = (double*)(PyArray_DATA(ain)
           + i * PyArray_STRIDES(ain)[0]);
         double* dataout = (double*)(PyArray_DATA(aout)
           + i * PyArray_STRIDES(aout)[0]);
-        continuum_processing_f(datain, dataout, dataawl, spectrum_length);
+        continuum_processing_f(datain, dataout, dataawl, indices, spectrum_length);
       }
+
+      free(indices);
+      } // pragma omp parallel
+    } else {
+      Py_ssize_t num_rows = PyArray_SHAPE(ain)[0];
+      Py_ssize_t num_cols = PyArray_SHAPE(ain)[1];
+      Py_ssize_t spectrum_length = PyArray_SHAPE(ain)[2];
+      if (spectrum_length != PyArray_SHAPE(awl)[0]) {
+          PyErr_SetString(PyExc_ValueError,
+              "In continuum_generic_impl: wavelengths array has incorrect length.");
+          return Py_None;
+      }
+
+      //TODO: This could be optimized for better work sharing.
+      #pragma omp parallel
+      {
+      size_t* indices = malloc(sizeof(size_t) * spectrum_length);
+
+      #pragma omp for
+      for (Py_ssize_t i = 0; i < num_rows; ++i) {
+        for (Py_ssize_t j = 0; j < num_cols; ++j) {
+	  double* datain = (double*)(PyArray_DATA(ain)
+            + i * PyArray_STRIDES(ain)[0] + j * PyArray_STRIDES(ain)[1]);
+          double* dataout = (double*)(PyArray_DATA(aout)
+            + i * PyArray_STRIDES(aout)[0] + j * PyArray_STRIDES(aout)[1]);
+          continuum_processing_f(datain, dataout, dataawl, indices, spectrum_length);
+	}
+      }
+
+      free(indices);
+      } // pragma omp parallel
     }
 
     return Py_None;
@@ -114,7 +155,7 @@ continuum_generic_impl(PyObject *self, PyObject *args,
 PyDoc_STRVAR(ccontinuum_continuum_doc,
 "continuum(spectrum)\n\
 \n\
-Return continuum of the spectrum.");
+Return continuum of the spectrum or each spectrum in image.");
 
 static PyObject *
 ccontinuum_continuum(PyObject *self, PyObject *args)
@@ -127,7 +168,7 @@ ccontinuum_continuum(PyObject *self, PyObject *args)
 PyDoc_STRVAR(ccontinuum_continuum_removed_doc,
 "continuum_removed(spectrum)\n\
 \n\
-Return continuum removed spectrum.");
+Return continuum removed spectrum or image.");
 
 static PyObject *
 ccontinuum_continuum_removed(PyObject *self, PyObject *args)

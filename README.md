@@ -4,13 +4,14 @@
 ./startlab.sh
 ```
 
-## Python depenencies
+## Python dependencies
 ```
 spectral
 scipy
 numpy
 matplotlib
 sklearn
+numba
 ```
 
 ## To build C module use

@@ -10,7 +10,7 @@ module1 = Extension('ccontinuum',
                     ],
                     libraries = ['gomp'],
                     library_dirs = ['/usr/local/lib'],
-                    extra_compile_args = ['-fopenmp'],
+                    extra_compile_args = ['-fopenmp', '-O3'],
                     sources = ['ccontinuummodule.c', 'ccontinuum.c'])
 
 setup (name = 'CContinuum',

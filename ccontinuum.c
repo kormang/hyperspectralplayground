@@ -1,13 +1,13 @@
 #include "ccontinuum.h"
 
 #include <stdio.h>
+#include <math.h>
 
 // Used to represent wavelengths in case we switch
 // to algorithm that includes wavelengths.
 #define WL(x) (wavelengths[x])
 
-void continuum(double input[], double output[], double wavelengths[], size_t n) {
-
+void continuum_old(double input[], double output[], double wavelengths[], size_t n) {
 	output[0] = input[0];
 	// i points to the last point that belongs to the curve.
 	// j points to the current potential point.
@@ -44,9 +44,74 @@ void continuum(double input[], double output[], double wavelengths[], size_t n) 
 	}
 }
 
-void continuum_removed(double input[], double output[], double wavelengths[], size_t n) {
-	continuum(input, output, wavelengths, n);
+void continuum_removed(double input[], double output[], double wavelengths[], size_t indices[], size_t n) {
+	continuum(input, output, wavelengths, indices, n);
 	for (size_t i = 0; i < n; ++i) {
 		output[i] = input[i] / output[i];
 	}
+}
+
+struct data_t {
+	double* spectrum;
+	double* wavelengths;
+	size_t* indices;
+	size_t n;
+	size_t ind_fill;
+};
+
+static void find_indices(struct data_t* data, size_t ibegin, size_t iend) {
+	double* spectrum = data->spectrum;
+	double* wavelengths = data->wavelengths;
+	size_t iendi = iend - 1;
+	double naxis_y = wavelengths[iendi] - wavelengths[ibegin];
+	double naxis_x = spectrum[ibegin] - spectrum[iendi];
+	double maxval = -INFINITY;
+	double imax = ibegin;
+
+	for(size_t i = ibegin; i < iendi; ++i) {
+		double newval = wavelengths[i] * naxis_x + spectrum[i] * naxis_y;
+		if (newval > maxval) {
+			maxval = newval;
+			imax = i;
+		}
+	}
+
+	if (imax == ibegin) {
+		return;
+	}
+
+	if (imax > ibegin + 1) {
+		find_indices(data, ibegin, imax + 1);
+	}
+
+	data->indices[data->ind_fill++] = imax;
+
+	if (imax < iend - 2) {
+		find_indices(data, imax, iend);
+	}
+}
+
+void continuum(double spectrum[], double output[], double wavelengths[], size_t indices[], size_t n) {
+	struct data_t data = { .spectrum = spectrum, .wavelengths = wavelengths, .indices = indices, .n = n, .ind_fill = 1 };
+
+	// Find indices of points that belong to convex hull.
+	indices[0] = 0;
+	find_indices(&data, 0, n);
+	indices[data.ind_fill] = n - 1; // Didn't increase ind_fill on purpose.
+
+	// Linear interpolation of points.
+	for (size_t i = 0; i < data.ind_fill; ++i) {
+		size_t ibegin = indices[i];
+		size_t iend = indices[i + 1];
+		// Put exact values where possible.
+		output[ibegin] = spectrum[ibegin];
+		// Calculate line parameters.
+		double a = (spectrum[iend] - spectrum[ibegin]) / (wavelengths[iend] - wavelengths[ibegin]);
+		double b = spectrum[ibegin] - a * wavelengths[ibegin];
+		// Fill.
+		for (size_t j = ibegin + 1; j < iend; ++j) {
+			output[j] = a * wavelengths[j] + b;
+		}
+	}
+	output[n - 1] = spectrum[n - 1];
 }

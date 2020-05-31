@@ -1,42 +1,30 @@
 # -*- coding: utf-8 -*-
 # pylint: disable=invalid-name
 import numpy as np
+import numba
+from numba import prange
 import scipy
 import math
 
-# In python, we don't compute continuum on many spectra.
-# That would be too slow.
-
-def continuum_removed(spectrum, continuum, removed = None):
-    """Be careful, it is not perfomant, """
-    """use this function only for testing purposes."""
-    if removed is None:
-        removed = np.empty_like(spectrum)
-    np.divide(spectrum, continuum, out=removed)
-    return removed
-
-def continuum_points(spectrum, wavelengths, strict_range = None):
+def continuum_points_old(spectrum, wavelengths, strict_range = None):
     strict_range = len(spectrum) if strict_range is None else strict_range
     indices = [0]
     indices_append = indices.append
     n = len(spectrum)
     i = 0 # Points to last point that belongs to the curve.
     j = 1 # Points to current potential point.
-    while j < n:
+    m = n - 1
+    while j < m:
         # Check all points in front of j,
         # to make sure it belongs to the curve.
         wli = wavelengths[i]
         spi = spectrum[i]
         qoef_j = (spectrum[j] - spi) / (wavelengths[j] - wli)
-        stopped_at_k = -1
         cont_limit = min(j + 1 + strict_range, n)
-        for k in range(j + 1, cont_limit):
-            qoef_k = (spectrum[k] - spi) / (wavelengths[k] - wli)
-            if qoef_j < qoef_k:
-                stopped_at_k = k
-                break
+        stopped_at_k = np.argmax(((spectrum[j+1: cont_limit] - spi) / (wavelengths[j+1: cont_limit] - wli)) > qoef_j) + j + 1
 
-        if stopped_at_k == -1:
+        # Need to check it because even if none is found, argmax returns 0.
+        if ((spectrum[stopped_at_k] - spi) / (wavelengths[stopped_at_k] - wli)) <= qoef_j:
             # j belongs
             indices_append(j)
 
@@ -52,6 +40,7 @@ def continuum_points(spectrum, wavelengths, strict_range = None):
             # so must be "below" k too. "Below" means, j is above line
             # connecting them and i.
             j = stopped_at_k
+    indices_append(j)
     return (wavelengths[indices], spectrum[indices])
 
 def interpolate_points(points, wavelengths, kind='linear'):
@@ -62,65 +51,164 @@ def interpolate_points(points, wavelengths, kind='linear'):
     f = scipy.interpolate.interp1d(points[0], points[1], kind=kind, assume_sorted=True)
     return f(wavelengths)
 
-def continuum(data, wavelengths, strict_range = None, out_data = None):
-    interp = scipy.interpolate.interp1d
-    strict_range = data.shape[-1] if strict_range is None else strict_range
+_negative_infinity = float('-inf')
 
-    if len(data.shape) == 1:
-        points = continuum_points(data, wavelengths, strict_range)
-        f = interp(points[0], points[1], assume_sorted=True)
-        result = f(wavelengths)
-        if out_data is not None:
-            out_data[i, :]
-        return result
-    elif len(data.shape) == 2:
-        for i in range(data.shape[0]):
-            points = continuum_points(data[i], wavelengths, strict_range)
-            f = interp(points[0], points[1], assume_sorted=True)
-            out_data[i, :] = f(wavelengths)
-    elif len(data.shape) == 3:
-        for i in range(data.shape[0]):
-            for j in range(data.shape[1]):
-                points = continuum_points(data[i, j], wavelengths, strict_range)
-                f = interp(points[0], points[1], assume_sorted=True)
-                out_data[i, j, :] = f(wavelengths)
+@numba.jit('int64(float64[:], float64, float64[:], float64)', nopython=True)
+def _argmax_dot_product(wls, naxis_x, spectrum, naxis_y):
+    n = len(wls)
+    valmax = wls[0] * naxis_x + spectrum[0] * naxis_y
+    imax = 0
+    for i in prange(1, n):
+        val = wls[i] * naxis_x + spectrum[i] * naxis_y
+        if val > valmax:
+            valmax = val
+            imax = i
 
+    return imax
 
-
-def find_continuum_points(wavelengths, spectrum):
-    indices = [0]
-    indices_append = indices.append
-
+@numba.jit('UniTuple(double[:], 2)(float64[:], float64[:], int64[:])', nopython=True)
+def find_continuum_points_iterative(spectrum, wavelengths, indices):
     n = len(spectrum)
-    rotated_ys = np.empty(n)
+    indices[0] = 0
+    ind_fill_i = 1
+    stack = []
+    stack_push = stack.append
+    stack_pop = stack.pop
 
-    def find_indices_in_range(ibegin, iend):
-        #print('finding between ' + str(ibegin) + ' and ' + str(iend))
-        sp = np.array((wavelengths[ibegin], spectrum[ibegin]))
-        ep = np.array((wavelengths[iend-1], spectrum[iend-1]))
-        new_x_axis = ep - sp
-        axis_vector_length = np.sqrt(np.dot(new_x_axis, new_x_axis))
-        cos_theta = new_x_axis[0] / axis_vector_length
-        # -sin(theta), minus because of clockewise rotation.
-        sin_theta = -new_x_axis[1] / axis_vector_length
-        rotated_ys[ibegin:iend] = wavelengths[ibegin:iend] * sin_theta + spectrum[ibegin:iend] * cos_theta
-        imax = np.argmax(rotated_ys[ibegin+1:iend-1]) + ibegin + 1
+    ibegin = 0
+    iend = n
 
-        if rotated_ys[imax] - rotated_ys[ibegin] <= 0:
-            return
+    while True:
+        iendi = iend - 1
+        # Find normal to new axis. Swap x and y, and negate new x.
+        # If we negate x instead of y, normal will always point upward.
+        naxis_y = wavelengths[iendi] - wavelengths[ibegin]
+        naxis_x = spectrum[ibegin] - spectrum[iendi]
+#         imax = np.argmax(wavelengths[ibegin:iendi] * naxis_x + spectrum[ibegin:iendi] * naxis_y) + ibegin
+        imax = _argmax_dot_product(wavelengths[ibegin:iendi], naxis_x, spectrum[ibegin:iendi], naxis_y) + ibegin
 
-        # Check left side.
-        if imax > ibegin + 1:
-            find_indices_in_range(ibegin, imax + 1)
+        if imax == ibegin:
+            # In current range all values are below convex hull, so go back where we came from.
+            if len(stack) == 0:
+                break
+            imax, ibegin, iend = stack_pop()
+            # Save middle index.
+            indices[ind_fill_i] = imax
+            ind_fill_i += 1
 
-        # Push middle index.
-        indices_append(imax)
+        elif imax > ibegin + 1:
+            # Check left side in next iteration.
+            # Remember on stack where to continue.
+            stack_push((imax, imax, iend))
+            iend = imax + 1
+        else:
+            # Can't go left any more.
+            # Save current middle.
+            indices[ind_fill_i] = imax
+            ind_fill_i += 1
+            if imax < iend - 2:
+                # We can still co right, prepare right side in next iteration.
+                ibegin = imax
+            else:
+                # Can't go left, nor right.
+                # Pop and go up.
+                if len(stack) == 0:
+                    break
+                imax, ibegin, iend = stack_pop()
+                # Save middle index.
+                indices[ind_fill_i] = imax
+                ind_fill_i += 1
 
-        # Check right side.
-        if imax < iend - 2:
-            find_indices_in_range(imax, iend)
 
-    find_indices_in_range(0, n)
-    indices.append(n-1)
+    indices[ind_fill_i] = n-1
+    indices = indices[:ind_fill_i+1]
 
     return (wavelengths[indices], spectrum[indices])
+
+@numba.jit('int64(float64[:], float64[:], int64[:], int64, int64, int64)', nopython=True)
+def _find_indices_in_range(spectrum, wavelengths, indices, ind_fill, ibegin, iend):
+    iendi = iend - 1
+    # Find normal to new axis. Swap x and y, and negate new x.
+    # If we negate x instead of y, normal will always point upward.
+    naxis_y = wavelengths[iendi] - wavelengths[ibegin]
+    naxis_x = spectrum[ibegin] - spectrum[iendi]
+#     imax = np.argmax(wavelengths[ibegin:iendi] * naxis_x + spectrum[ibegin:iendi] * naxis_y) + ibegin
+    imax = _argmax_dot_product(wavelengths[ibegin:iendi], naxis_x, spectrum[ibegin:iendi], naxis_y) + ibegin
+
+    if imax == ibegin:
+        return ind_fill
+
+    # Check left side.
+    if imax > ibegin + 1:
+        ind_fill = _find_indices_in_range(spectrum, wavelengths, indices, ind_fill, ibegin, imax + 1)
+
+    # Push middle index.
+    indices[ind_fill] = imax
+    ind_fill += 1
+
+    # Check right side.
+    if imax < iend - 2:
+        ind_fill =_find_indices_in_range(spectrum, wavelengths, indices, ind_fill, imax, iend)
+
+    return ind_fill
+
+@numba.jit('UniTuple(double[:], 2)(float64[:], float64[:], int64[:])', nopython=True)
+def find_continuum_points_recursive(spectrum, wavelengths, indices):
+    n = len(spectrum)
+    indices[0] = 0
+    ind_fill = 1
+
+    ind_fill = _find_indices_in_range(spectrum, wavelengths, indices, ind_fill, 0, n)
+    indices[ind_fill] = n - 1
+    indices = indices[:ind_fill + 1]
+
+    return (wavelengths[indices], spectrum[indices])
+
+@numba.jit('void(float64[:], float64[:], int64[:])', nopython=True)
+def compute_1d_continuum(data, wavelengths, out):
+    indices = np.empty(data.shape[-1], np.int64)
+    points = find_continuum_points_recursive(data, wavelengths, indices)
+    out[:] = np.interp(wavelengths, points[0], points[1])
+
+@numba.jit('void(float64[:,:], float64[:], float64[:,:])', nopython=True)
+def compute_2d_continuums(data, wavelengths, out):
+    interp = np.interp
+    n = data.shape[-1]
+    indices = np.empty(n, np.int64)
+
+    for i in prange(data.shape[0]):
+        points = find_continuum_points_recursive(data[i], wavelengths, indices)
+        out[i, :] = interp(wavelengths, points[0], points[1])
+
+@numba.jit('void(float64[:,:,:], float64[:], float64[:,:,:])', nopython=True, parallel=True)
+def compute_3d_continuums(data, wavelengths, out):
+    interp = np.interp
+    n = data.shape[-1]
+
+    for i in prange(data.shape[0]):
+        indices = np.empty(n, np.int64)
+        for j in range(data.shape[1]):
+            points = find_continuum_points_recursive(data[i, j], wavelengths, indices)
+            out[i, j, :] = interp(wavelengths, points[0], points[1])
+
+
+def continuum_points(spectrum, wavelengths, indices = None):
+    indices = np.empty_like(spectrum, dtype='int64') if indices is None else indices
+    return find_continuum_points_recursive(spectrum, wavelengths, indices)
+
+
+def continuum(data, wavelengths, out = None):
+    if len(data.shape) == 1:
+        out = np.empty_like(data) if out is None else out
+        compute_1d_continuum(data, wavelengths, out)
+    elif len(data.shape) == 2:
+        compute_2d_continuums(data, wavelengths, out)
+    elif len(data.shape) == 3:
+        compute_3d_continuums(data, wavelengths, out)
+    return out
+
+
+def continuum_removed(spectra, wavelengths, out = None):
+    out = continuum(spectra, wavelenghts, out)
+    np.divide(spectra, continuum, out=out)
+    return out
