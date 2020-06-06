@@ -6,7 +6,7 @@ from numba import prange
 import scipy
 import math
 
-def continuum_points_old(spectrum, wavelengths, strict_range = None):
+def continuum_points_original(spectrum, wavelengths, strict_range = None):
     strict_range = len(spectrum) if strict_range is None else strict_range
     indices = [0]
     indices_append = indices.append
@@ -43,6 +43,13 @@ def continuum_points_old(spectrum, wavelengths, strict_range = None):
     indices_append(j)
     return (wavelengths[indices], spectrum[indices])
 
+def continuum_original(spectrum, wavelengths, strict_range = None):
+    points = continuum_points_original(spectrum, wavelengths, strict_range)
+    return interpolate_points(points, wavelengths)
+
+def continuum_removed_original(spectrum, cont):
+    return spectrum / cont
+
 def interpolate_points(points, wavelengths, kind='linear'):
     """
         Points are 2-tuple, where element 0 is array of x values,
@@ -50,8 +57,6 @@ def interpolate_points(points, wavelengths, kind='linear'):
     """
     f = scipy.interpolate.interp1d(points[0], points[1], kind=kind, assume_sorted=True)
     return f(wavelengths)
-
-_negative_infinity = float('-inf')
 
 @numba.jit('int64(float64[:], float64, float64[:], float64)', nopython=True)
 def _argmax_dot_product(wls, naxis_x, spectrum, naxis_y):
@@ -164,7 +169,7 @@ def find_continuum_points_recursive(spectrum, wavelengths, indices):
 
     return (wavelengths[indices], spectrum[indices])
 
-@numba.jit('void(float64[:], float64[:], int64[:])', nopython=True)
+@numba.jit('void(float64[:], float64[:], float64[:])', nopython=True)
 def compute_1d_continuum(data, wavelengths, out):
     indices = np.empty(data.shape[-1], np.int64)
     points = find_continuum_points_recursive(data, wavelengths, indices)
@@ -209,6 +214,6 @@ def continuum(data, wavelengths, out = None):
 
 
 def continuum_removed(spectra, wavelengths, out = None):
-    out = continuum(spectra, wavelenghts, out)
-    np.divide(spectra, continuum, out=out)
+    out = continuum(spectra, wavelengths, out)
+    np.divide(spectra, out, out=out)
     return out
