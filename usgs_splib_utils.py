@@ -4,6 +4,7 @@ import re
 import scipy
 from spectral.io.spyfile import find_file_path
 from spectral import *
+from utils import *
 
 class SpectralData:
     def __init__(self, spectrum = None, libname = None,
@@ -80,39 +81,20 @@ class SpectralData:
         return self
 
     def interpolate_invalid(self, kind='slinear'):
-        full_xs = list(range(len(self.spectrum)))
-        xs = [x for x, y in zip(full_xs, self.spectrum) if y > 0.0]
-        ys = [y for y in self.spectrum if y > 0.0]
-        if xs[0] > full_xs[0]:
-            xs.insert(0, full_xs[0])
-            ys.insert(0, ys[0])
-        if xs[-1] < full_xs[-1]:
-            xs.append(full_xs[-1])
-            ys.append(ys[-1])
-        f = scipy.interpolate.interp1d(xs, ys, kind=kind, assume_sorted=True)
-        self.spectrum = f(full_xs)
+        self.spectrum = interpolate_invalid(self.spectrum, kind)
         return self
 
     def resample_as(self, spectrometer_name, with_fixed_dest = False):
         """
             Returns spectrum resampled to different spectrometer.
         """
-        dest = SpectrometerData.get_by_name(spectrometer_name)
-        dest_wl = dest.wavelengths
-        dest_bw = dest.bandwidths
-        if with_fixed_dest:
-            dest_wl = np.sort(dest_wl)
-            dest_bw = None
+        return resample_as(self.spectrum, self.wavelengths(), spectrometer_name, with_fixed_dest, self.spectrometer_data.bandwidths)
 
-        return self.resample_at(dest_wl, dest_bw)
-
-    def resample_at(self, dest_wl, dest_bw = None):
+    def resample_at(self, dest_wls, dest_bw = None):
         """
-            Returns spectrum resampled to different spectrometer.
+            Returns spectrum resampled to specified wavelengths and bandwidths.
         """
-        resampler = BandResampler(self.spectrometer_data.wavelengths, dest_wl,
-                                  self.spectrometer_data.bandwidths, dest_bw)
-        return resampler(self.spectrum)
+        return resample_at(self.spectrum, self.wavelengths(), dest_wls, self.spectrometer_data.bandwidths, dest_bw)
 
 
     def interpolate_as(self, spectrometer_name, with_fixed_dest = True, kind='quadratic'):
@@ -120,42 +102,29 @@ class SpectralData:
             Returns spectrum interpoleted at wavelengths of different spectrometer,
             based on wavelengths and reflectances of original.
         """
-        dest = SpectrometerData.get_by_name(spectrometer_name)
-        dest_wl = dest.wavelengths
-        if with_fixed_dest:
-            dest_wl = np.sort(dest_wl)
+        return interpolate_as(self.spectrum, self.wavelengths(), spectrometer_name, with_fixed_dest, kind)
 
-        return self.interpolate_at(dest_wl, kind)
-
-    def interpolate_at(self, dest_wl, kind='quadratic'):
+    def interpolate_at(self, dest_wls, kind='quadratic'):
         """
             Returns spectrum interpoleted at specified wavelengths,
             based on wavelengths and reflectances of original.
         """
-        xs = self.wavelengths()
-        ys = self.spectrum
-        f = scipy.interpolate.interp1d(xs, ys, kind=kind, assume_sorted=True, fill_value='extrapolate')
-        return f(dest_wl)
+        return interpolate_at(self.spectrum, self.wavelengths(), dest_wls)
 
-    def in_range(self, min_wl, max_wl):
+    def in_range(self, dst_wls):
         """
             Return wavelengths and spectrum part between min wavelength and max wavelength.
+            Min wavelength is max(src_wls[0], dst_wls[0]).
+            Max wavelengths is min(src_wls[-1], dst_wls[-1]).
+            dst_wls can be ndarray, or simply 2-tuple with max and min wavelengths.
         """
-        src_wavelengths = self.spectrometer_data.wavelengths
-        min_wl = max(src_wavelengths[0], min_wl)
-        max_wl = min(src_wavelengths[-1], max_wl)
-        min_index = np.argmax(src_wavelengths >= min_wl)
-        max_index = np.argmax(src_wavelengths > max_wl)
-        range_wl = src_wavelengths[min_index:max_index]
-        range_spec = self.spectrum[min_index:max_index]
-        return range_wl, range_spec
+        return cut_range(self.spectrum, self.wavelengths(), dst_wls)
 
     def in_range_of(self, spectrometer_name):
         """
             Return wavelengths and spectrum part that overlaps with other spectrometer.
         """
-        dest_wavelengths = SpectrometerData.get_by_name(spectrometer_name).wavelengths
-        return self.in_range(dest_wavelengths[0], dest_wavelengths[-1])
+        return cut_range_of(self.spectrum, self.wavelengths(), spectrometer_name)
 
     def fix(self):
         self.interpolate_invalid()
@@ -166,6 +135,7 @@ class SpectralData:
 
     def wavelengths(self):
         return self._wavelengths if self.fixed else self.spectrometer_data.wavelengths
+
 
 class SpectrometerData:
     def __init__(self, libname, record, measurement, spectrometer_name, description, wavelengths, bandwidths):
@@ -206,26 +176,27 @@ class SpectrometerData:
 
 
     _name2bandpassfilename = {
-        'ASDFR': 'splib07a_Bandpass_(FWHM)_ASDFR_StandardResolution.txt',
-        'ASDHR': 'splib07a_Bandpass_(FWHM)_ASDHR_High-Resolution.txt',
-        'ASDNG': 'splib07a_Bandpass_(FWHM)_ASDNG_High-Res_NextGen.txt',
-        'AVIRIS': 'splib07a_Bandpass_(FWHM)_AVIRIS_1996_in_microns.txt',
-        'BECK': 'splib07a_Bandpass_(FWHM)_BECK_Beckman_in_microns.txt',
-        'NIC': 'splib07a_Bandpass_(FWHM)_NIC4_Nicolet_in_microns.txt'
+        'ASDFR': 'gsus_spectrometer_data/splib07a_Bandpass_(FWHM)_ASDFR_StandardResolution.txt',
+        'ASDHR': 'gsus_spectrometer_data/splib07a_Bandpass_(FWHM)_ASDHR_High-Resolution.txt',
+        'ASDNG': 'gsus_spectrometer_data/splib07a_Bandpass_(FWHM)_ASDNG_High-Res_NextGen.txt',
+        'AVIRIS': 'gsus_spectrometer_data/splib07a_Bandpass_(FWHM)_AVIRIS_1996_in_microns.txt',
+        'BECK': 'gsus_spectrometer_data/splib07a_Bandpass_(FWHM)_BECK_Beckman_in_microns.txt',
+        'NIC': 'gsus_spectrometer_data/splib07a_Bandpass_(FWHM)_NIC4_Nicolet_in_microns.txt'
     }
 
     _name2wavelengthfilename = {
-        'ASDFR': 'splib07a_Wavelengths_ASD_0.35-2.5_microns_2151_ch.txt',
-        'ASDHR': 'splib07a_Wavelengths_ASD_0.35-2.5_microns_2151_ch.txt',
-        'ASDNG': 'splib07a_Wavelengths_ASD_0.35-2.5_microns_2151_ch.txt',
-        'AVIRIS': 'splib07a_Wavelengths_AVIRIS_1996_0.37-2.5_microns.txt',
-        'BECK': 'splib07a_Wavelengths_BECK_Beckman_0.2-3.0_microns.txt',
-        'NIC': 'splib07a_Wavelengths_NIC4_Nicolet_1.12-216microns.txt'
+        'ASDFR': 'gsus_spectrometer_data/splib07a_Wavelengths_ASD_0.35-2.5_microns_2151_ch.txt',
+        'ASDHR': 'gsus_spectrometer_data/splib07a_Wavelengths_ASD_0.35-2.5_microns_2151_ch.txt',
+        'ASDNG': 'gsus_spectrometer_data/splib07a_Wavelengths_ASD_0.35-2.5_microns_2151_ch.txt',
+        'AVIRIS': 'gsus_spectrometer_data/splib07a_Wavelengths_AVIRIS_1996_0.37-2.5_microns.txt',
+        'BECK': 'gsus_spectrometer_data/splib07a_Wavelengths_BECK_Beckman_0.2-3.0_microns.txt',
+        'NIC': 'gsus_spectrometer_data/splib07a_Wavelengths_NIC4_Nicolet_1.12-216microns.txt'
     }
 
     @staticmethod
     def read_data_from_file(filename):
-        with open(filename) as f:
+        path = find_file_path(filename)
+        with open(path) as f:
             header_line = f.readline()
             libname, record, measurement, spectrometer_name, description = \
                 SpectrometerData.parse_header(header_line.strip())
@@ -245,12 +216,10 @@ class SpectrometerData:
     def read_from_file_by_name(name):
         assert(name in SpectrometerData._name2wavelengthfilename), \
             'Spectrometer with name ' + name + ' is not supported.'
-        wlfilepath = os.path.join(os.path.dirname(__file__),
-                                  SpectrometerData._name2wavelengthfilename[name])
+        wlfilepath = SpectrometerData._name2wavelengthfilename[name]
         libname, record, measurement, spectrometer_name, description, wavelengths = \
             SpectrometerData.read_data_from_file(wlfilepath)
-        bpfilepath = os.path.join(os.path.dirname(__file__),
-                                  SpectrometerData._name2bandpassfilename[name])
+        bpfilepath = SpectrometerData._name2bandpassfilename[name]
         libname, record, measurement, spetrometer_name, description, bandpass = \
             SpectrometerData.read_data_from_file(bpfilepath)
         return SpectrometerData(libname, record, measurement, spectrometer_name, description, wavelengths, bandpass)
@@ -274,3 +243,45 @@ class SpectrometerData:
         sd = SpectrometerData.read_from_file_by_name(name)
         SpectrometerData._name2specdata[name] = sd
         return sd
+
+##### Free utility functions: ########
+
+def get_bands_of(spectrometer_name, with_fixed_wls = True):
+    wls = SpectrometerData.get_by_name(spectrometer_name).wavelengths
+    if with_fixed_wls:
+        wls = np.sort(wls)
+    return wls
+
+def resample_as(spectrum, src_wls, spectrometer_name, with_fixed_dest = False, src_bw = None):
+    """
+        Returns spectrum resampled to different spectrometer.
+    """
+    dest = SpectrometerData.get_by_name(spectrometer_name)
+    dest_wls = dest.wavelengths
+    dest_bw = dest.bandwidths
+    if with_fixed_dest:
+        dest_wls = np.sort(dest_wls)
+        dest_bw = None
+
+    return resample_at(spectrum, src_wls, dest_wls, src_bw, dest_bw)
+
+def interpolate_as(spectrum, src_wls, spectrometer_name, with_fixed_dest = True, kind='quadratic'):
+    """
+        Returns spectrum interpoleted at wavelengths of different spectrometer,
+        based on wavelengths and reflectances of original.
+    """
+    dest = SpectrometerData.get_by_name(spectrometer_name)
+    dest_wls = dest.wavelengths
+    if with_fixed_dest:
+        dest_wls = np.sort(dest_wls)
+
+    return interpolate_at(spectrum, src_wls, dest_wls, kind)
+
+
+def cut_range_of(spectrum, wls, spectrometer_name):
+    """
+        Return wavelengths and spectrum part that overlaps with other spectrometer.
+    """
+    dest_wls = SpectrometerData.get_by_name(spectrometer_name).wavelengths
+    x, y = cut_range(spectrum, wls, dest_wls)
+    return x, y
