@@ -1,14 +1,14 @@
-spec_len# -*- coding: utf-8 -*-
-# pylint: disable=invalid-name
 from __future__ import print_function
+# -*- coding: utf-8 -*-
+# pylint: disable=invalid-name
 from spectral import *
 import numpy as np
 import scipy.spatial.distance as distance
-import pylab
+# import pylab
 import spectral.io.envi as envi
 import random
 from scipy.spatial.distance import cdist
-from sklearn.cluster import KMeans
+# from sklearn.cluster import KMeans
 from timeit import default_timer as timer
 
 def generate_class_colours(n):
@@ -28,26 +28,26 @@ def normalized(a, order=2, axis=-1):
 def image_of_modules(image):
     return np.sqrt(np.einsum('ijk,ijk->ij', image, image))
 
-def show_centers(centers, title):
-    if title is None:
-        title = "Centers"
-    pylab.figure()
-    # pylab.hold(1) # default and depricated
-    for i in range(min(centers.shape[0], 30)):
-        pylab.plot(centers[i])
-    pylab.title(title)
-    pylab.show()
+# def show_centers(centers, title):
+#     if title is None:
+#         title = "Centers"
+#     pylab.figure()
+#     # pylab.hold(1) # default and depricated
+#     for i in range(min(centers.shape[0], 30)):
+#         pylab.plot(centers[i])
+#     pylab.title(title)
+#     pylab.show()
 
-def show_histogram(hist_values, title):
-    pylab.figure()
-    pylab.hist(range(len(hist_values)), len(hist_values), weights=hist_values)
-    pylab.title(title)
-    pylab.show()
-    raw_input("Press Enter to continue...")
-    pylab.close()
+# def show_histogram(hist_values, title):
+#     pylab.figure()
+#     pylab.hist(range(len(hist_values)), len(hist_values), weights=hist_values)
+#     pylab.title(title)
+#     pylab.show()
+#     raw_input("Press Enter to continue...")
+#     pylab.close()
 
 def kmeans_cosine(image, nclusters=10, max_iterations=20, **kwargs):
-    from spectral.algorithms.spymath import has_nan, NaNValueError
+    from spectral.utilities.errors import has_nan, NaNValueError
 
     if has_nan(image):
         raise NaNValueError('Image data contains NaN values.')
@@ -92,7 +92,7 @@ def kmeans_cosine(image, nclusters=10, max_iterations=20, **kwargs):
         for i in range(nclusters):
             centers[i] = image[random.randrange(N)]
 
-    show_centers(centers, "Initial centers")
+#     show_centers(centers, "Initial centers")
     #raw_input("Press Enter to continue...")
 
     centers = centers.T
@@ -153,7 +153,7 @@ def kmeans_cosine(image, nclusters=10, max_iterations=20, **kwargs):
     return (old_clusters.reshape(nrows, ncols), centers.T)
 
 def kmeans_L2(image, nclusters=10, max_iterations=20, **kwargs):
-    from spectral.algorithms.spymath import has_nan, NaNValueError
+    from spectral.utilities.errors import has_nan, NaNValueError
 
     if has_nan(image):
         raise NaNValueError('Image data contains NaN values.')
@@ -198,7 +198,7 @@ def kmeans_L2(image, nclusters=10, max_iterations=20, **kwargs):
         for i in range(nclusters):
             centers[i] = image[random.randrange(N)]
 
-    show_centers(centers, "Initial centers")
+#     show_centers(centers, "Initial centers")
     #raw_input("Press Enter to continue...")
 
     centers = centers.T
@@ -252,7 +252,7 @@ def kmeans_L2(image, nclusters=10, max_iterations=20, **kwargs):
     return (old_clusters.reshape(nrows, ncols), centers.T)
 
 def kmeans_cdist(image, nclusters=10, max_iterations=20, **kwargs):
-    from spectral.algorithms.spymath import has_nan, NaNValueError
+    from spectral.utilities.errors import has_nan, NaNValueError
 
     if has_nan(image):
         raise NaNValueError('Image data contains NaN values.')
@@ -297,7 +297,7 @@ def kmeans_cdist(image, nclusters=10, max_iterations=20, **kwargs):
         for i in range(nclusters):
             centers[i] = image[random.randrange(N)]
 
-    show_centers(centers, "Initial centers")
+#     show_centers(centers, "Initial centers")
     #raw_input("Press Enter to continue...")
 
     centers = centers.T
@@ -347,7 +347,7 @@ def kmeans_cdist(image, nclusters=10, max_iterations=20, **kwargs):
     return (old_clusters.reshape(nrows, ncols), centers.T)
 
 def find_related_clusters(image, min_correlation, **kwargs):
-    from spectral.algorithms.spymath import has_nan, NaNValueError
+    from spectral.utilities.errors import has_nan, NaNValueError
 
     if has_nan(image):
         raise NaNValueError('Image data contains NaN values.')
@@ -435,7 +435,7 @@ def find_mincorr3(values, centers = None, reduce_coef = None):
     return values[index]
 
 def find_maxdist_clusters(image, min_correlation):
-    from spectral.algorithms.spymath import has_nan, NaNValueError
+    from spectral.utilities.errors import has_nan, NaNValueError
 
     if has_nan(image):
         raise NaNValueError('Image data contains NaN values.')
@@ -522,7 +522,7 @@ img = envi.open('f080611t01p00r07rdn_c_sc01_ort_img.hdr')
 print(img)
 
 data = img[400:1000, 200:, :]
-# data = img[400:700, 200:400, :]
+#data = img[400:700, 200:400, :]
 data[data <= 0] = 1
 print(data.dtype)
 
@@ -540,16 +540,22 @@ nclusters = 500
 #(class_map, centers) = kmeans_L2(data, nclusters=nclusters, max_iterations=500)
 #(class_map, centers) = kmeans_cdist(data, nclusters=nclusters, max_iterations=900)
 
-#(class_map, centers) = find_related_clusters(data, 0.99)
-(class_map, centers) = find_maxdist_clusters(data, 0.99)
-print('Centers\' shape: ', centers.shape)
-subclass_map = subdivide_by_modules(data, class_map, centers.shape[0], True)
+#(class_map, centers) = find_related_clusters(data, 0.999)
+#(class_map, centers) = find_maxdist_clusters(data, 0.99)
+#print('Centers\' shape: ', centers.shape)
+#subclass_map = subdivide_by_modules(data, class_map, centers.shape[0], True)
 
-#(class_map, centers) = find_related_clusters(data, 0.99, start_centers=centers)
+#(class_map, centers) = find_related_clusters(data, 0.99)
+# from autoclustering import find_maxdist_clusters
+# (class_map, centers) = find_maxdist_clusters(data, 0.99)
+
+#print('Centers\' shape: ', centers.shape)
+
 #(class_map, centers) = kmeans_cosine(data, nclusters=centers.shape[0], max_iterations=10, start_clusters=centers)
+(class_map, centers) = kmeans_cosine(data, nclusters=1115, max_iterations=100)
 
 view = imshow(data, (29, 20, 12), title="Image")
-#raw_input("Press Enter to continue...")
+raw_input("Press Enter to continue...")
 
 def show_classes(class_map):
     class_colours = generate_class_colours(np.max(class_map))
@@ -565,11 +571,11 @@ inds_of_water = np.where(class_map == water_class)
 spectra_of_water = data[inds_of_water]
 subclasses_of_water = np.unique(subclass_map[inds_of_water])
 
-spectra = np.empty((subclasses_of_water.shape[0], data.shape[2]))
-for i in range(subclasses_of_water.shape[0]):
-    inds_of_subclass = np.where(subclass_map == subclasses_of_water[i])
-    print( (inds_of_subclass[0][0], inds_of_subclass[1][0]))
-    spectra[i] = data[inds_of_subclass[0][0], inds_of_subclass[1][0]]
+# spectra = np.empty((subclasses_of_water.shape[0], data.shape[2]))
+# for i in range(subclasses_of_water.shape[0]):
+#    inds_of_subclass = np.where(subclass_map == subclasses_of_water[i])
+#    print( (inds_of_subclass[0][0], inds_of_subclass[1][0]))
+#    spectra[i] = data[inds_of_subclass[0][0], inds_of_subclass[1][0]]
 
 show_centers(spectra, u'Spectra of water subclasses')
 
@@ -582,7 +588,7 @@ show_histogram(counts_per_clusters, 'Number of spectra per cluster')
 
 show_centers(centers, "Final centers")
 
-# compute image of modules
+compute image of modules
 data_double = data.astype(float)
 modules = image_of_modules(data_double)
 
@@ -596,6 +602,12 @@ for i in range(scale_map.shape[0]):
         scale_map[i, j] = modules[i, j] / center_modules[class_map[i, j]]
 
 image_shape = data.shape
+
+
+from class_cluster_compress import *
+scale_map = compute_scale_map(data, class_map, centers)
+reconstruction = reconstruct_image(scale_map, class_map, centers)
+print_diff_stats(data, reconstruction)
 
 # =====================================================================
 # =====================================================================
@@ -621,15 +633,15 @@ print('Max: ', np.max(as1darray))
 print('Min: ', np.min(as1darray))
 print('Avg: ', np.average(as1darray))
 
-#index_of_max = np.argmax(as1darray)
-#band_of_max = index_of_max % diffs.shape[2]
-#index_of_max /= diffs.shape[2]
-#j_of_max = index_of_max % diffs.shape[1]
-#i_of_max = index_of_max / diffs.shape[1]
+index_of_max = np.argmax(as1darray)
+band_of_max = index_of_max % diffs.shape[2]
+index_of_max /= diffs.shape[2]
+j_of_max = index_of_max % diffs.shape[1]
+i_of_max = index_of_max / diffs.shape[1]
 (i_of_max, j_of_max, band_of_max) = np.unravel_index(np.argmax(abs_diffs), abs_diffs.shape)
 print('Coordinates of max: ', i_of_max, j_of_max, band_of_max)
 print('Check the difference: ', data[i_of_max, j_of_max, band_of_max] - reconstruction[i_of_max, j_of_max, band_of_max])
-#print(data[i_of_max, j_of_max] - reconstruction[i_of_max, j_of_max])
+print(data[i_of_max, j_of_max] - reconstruction[i_of_max, j_of_max])
 
 pylab.figure()
 # pylab.hold(1) # default and depricated
@@ -657,4 +669,4 @@ print('Rel. Max: ' + str(np.max(rel_as1darray)))
 print('Rel. Min: ' + str(np.min(rel_as1darray)))
 print('Rel. Avg: ' + str(np.average(rel_as1darray)))
 
-raw_input("Press Enter to continue...")
+#raw_input("Press Enter to continue...")

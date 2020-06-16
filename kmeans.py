@@ -6,9 +6,10 @@ import numpy as np
 import pylab
 import random
 from scipy.spatial.distance import cdist
+from math_utils import *
 
 def kmeans_cosine(image, nclusters=10, max_iterations=20, **kwargs):
-    from spectral.algorithms.spymath import has_nan, NaNValueError
+    from spectral.utilities.errors import has_nan, NaNValueError
 
     if has_nan(image):
         raise NaNValueError('Image data contains NaN values.')
@@ -53,19 +54,16 @@ def kmeans_cosine(image, nclusters=10, max_iterations=20, **kwargs):
         for i in range(nclusters):
             centers[i] = image[random.randrange(N)]
 
-    show_centers(centers, "Initial centers")
-    #raw_input("Press Enter to continue...")
-
     centers = centers.T
     #distances = np.empty((N, nclusters), float)
     old_centers = np.array(centers)
     clusters = np.zeros((N,), int)
     old_clusters = np.copy(clusters)
-    #old_n_changed = 1
+    n_changed = 0
     itnum = 1
     while (itnum <= max_iterations):
         try:
-            print('\rIteration %d...' % itnum, end='')
+            print('\rIteration %d (%d pixels reassinged previously)...' % (itnum, n_changed), end='')
 
             # Assign all pixels
             #distances[:] = np.matmul(image, centers)
@@ -95,7 +93,6 @@ def kmeans_cosine(image, nclusters=10, max_iterations=20, **kwargs):
                 #     viewt.class_alpha = 0.85
                 #     old_n_changed = n_changed
                 #     # raw_input("Press Enter to continue...")
-                print('%d pixels reassigned.' % (n_changed), end='')
                 if n_changed == 0:
                     break
 
@@ -109,12 +106,15 @@ def kmeans_cosine(image, nclusters=10, max_iterations=20, **kwargs):
             print("KeyboardInterrupt: Returning clusters from previous iteration.")
             return (old_clusters.reshape(nrows, ncols), old_centers.T)
 
+    print('%d pixels reassigned in last iteration.' % (n_changed))
+
+
     print('kmeans terminated with', len(set(old_clusters.ravel())), \
         'clusters after', itnum - 1, 'iterations.')
     return (old_clusters.reshape(nrows, ncols), centers.T)
 
 def kmeans_L2(image, nclusters=10, max_iterations=20, **kwargs):
-    from spectral.algorithms.spymath import has_nan, NaNValueError
+    from spectral.utilities.errors import has_nan, NaNValueError
 
     if has_nan(image):
         raise NaNValueError('Image data contains NaN values.')
@@ -158,9 +158,6 @@ def kmeans_L2(image, nclusters=10, max_iterations=20, **kwargs):
         random.seed(4)
         for i in range(nclusters):
             centers[i] = image[random.randrange(N)]
-
-    show_centers(centers, "Initial centers")
-    #raw_input("Press Enter to continue...")
 
     centers = centers.T
     #distances = np.empty((N, nclusters), float)
@@ -213,7 +210,7 @@ def kmeans_L2(image, nclusters=10, max_iterations=20, **kwargs):
     return (old_clusters.reshape(nrows, ncols), centers.T)
 
 def kmeans_cdist(image, nclusters=10, max_iterations=20, **kwargs):
-    from spectral.algorithms.spymath import has_nan, NaNValueError
+    from spectral.utilities.errors import has_nan, NaNValueError
 
     if has_nan(image):
         raise NaNValueError('Image data contains NaN values.')
@@ -258,19 +255,16 @@ def kmeans_cdist(image, nclusters=10, max_iterations=20, **kwargs):
         for i in range(nclusters):
             centers[i] = image[random.randrange(N)]
 
-    show_centers(centers, "Initial centers")
-    #raw_input("Press Enter to continue...")
-
     centers = centers.T
     #distances = np.empty((N, nclusters), float)
     old_centers = np.array(centers)
     clusters = np.zeros((N,), int)
     old_clusters = np.copy(clusters)
-    #old_n_changed = 1
+    n_changed = 0
     itnum = 1
     while (itnum <= max_iterations):
         try:
-            print('Iteration %d...' % itnum)
+            print('Iteration %d (%d pixels reassinged previously)...' % (itnum, n_changed))
 
             # Assign all pixels
             #distances[:] = np.matmul(image, centers)
@@ -291,7 +285,6 @@ def kmeans_cdist(image, nclusters=10, max_iterations=20, **kwargs):
                 break
             else:
                 n_changed = np.sum(clusters != old_clusters)
-                print('%d pixels reassigned.' % (n_changed))
                 if n_changed == 0:
                     break
 
@@ -302,6 +295,9 @@ def kmeans_cdist(image, nclusters=10, max_iterations=20, **kwargs):
         except KeyboardInterrupt:
             print("KeyboardInterrupt: Returning clusters from previous iteration.")
             return (old_clusters.reshape(nrows, ncols), old_centers.T)
+
+    print('%d pixels reassigned in last iteration.' % (n_changed))
+
 
     print('kmeans terminated with', len(set(old_clusters.ravel())), \
         'clusters after', itnum - 1, 'iterations.')

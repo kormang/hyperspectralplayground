@@ -19,7 +19,7 @@ def find_related_clusters2(image, min_correlation, **kwargs):
         Returns pair of (map of cluster indices, centers).
         Centers have shape (num_centers, spectrum_length).
     """
-    from spectral.algorithms.spymath import has_nan, NaNValueError
+    from spectral.utilities.errors import has_nan, NaNValueError
 
     if has_nan(image):
         raise NaNValueError('Image data contains NaN values.')
@@ -136,16 +136,22 @@ def find_maxdist_from_center(values, centers):
     index_of_max = np.argmax(distances)
     return values[index_of_max]
 
-def find_mincorr_from_center(values, centers):
+def find_mincorr_from_center(values, centers = None):
     """
         Returns value that is least correlated from center of centers or values (if centers are None).
         Values are of shape (N, c) where c is number of channel or dimensionality of each vector.
         Values are expected to be normalized.
     """
-    avg = np.average(values if centers is None else centers, axis=0)
-    corrs = np.matmul(values, avg)
+    if centers is None:
+        centers = values
+    avg = np.average(centers, axis=0)
+    corrs = np.dot(values, avg)
     index_of_min = np.argmin(corrs)
     return values[index_of_min]
+
+def compute_class_map_by_angle(image, centers):
+    (nrows, ncols, _) = image.shape
+    return np.argmax(np.einsum('ijk,mk->ijm', image, centers), axis=2).reshape(nrows, ncols)
 
 def find_maxdist_clusters(image, min_correlation):
     """
@@ -160,7 +166,7 @@ def find_maxdist_clusters(image, min_correlation):
         Returns pair of map of indices of clusters,
         and cluster centers of shape (N, spectrum_length).
     """
-    from spectral.algorithms.spymath import has_nan, NaNValueError
+    from spectral.utilities.errors import has_nan, NaNValueError
 
     if has_nan(image):
         raise NaNValueError('Image data contains NaN values.')
@@ -171,7 +177,7 @@ def find_maxdist_clusters(image, min_correlation):
     #values = image.copy()
     clusters = np.zeros((N,), int) - 1
     MAX_CENTERS = 65536
-    centers = np.zeros((nbands, MAX_CENTERS))
+    centers = np.zeros((MAX_CENTERS, nbands))
     num_centers = 0
     #avg = np.average(image, axis=0)
     #values -= avg
@@ -179,17 +185,17 @@ def find_maxdist_clusters(image, min_correlation):
     #values = np.delete(values, minci, axis=0)
     #newcenter = find_mincorr3(values, None, 10)
     newcenter = find_mincorr_from_center(values)
-    centers[:, num_centers] = newcenter
+    centers[0] = newcenter
     num_centers += 1
-    corrs_with_newcenter = np.matmul(values, newcenter)
+    corrs_with_newcenter = np.dot(values, newcenter)
     high_corr_inds = np.argwhere(corrs_with_newcenter >= min_correlation)
     values = np.delete(values, high_corr_inds, axis=0)
 
     while values.size > 0 and num_centers < MAX_CENTERS:
-        newcenter = find_mincorr_from_center(values, centers[:, :num_centers])
-        centers[:, num_centers] = newcenter
+        newcenter = find_mincorr_from_center(values, centers[:num_centers])
+        centers[num_centers] = newcenter
         num_centers += 1
-        corrs_with_newcenter = np.matmul(values, newcenter)
+        corrs_with_newcenter = np.dot(values, newcenter)
         high_corr_inds = np.argwhere(corrs_with_newcenter >= min_correlation)
         values = np.delete(values, high_corr_inds, axis=0)
 
@@ -198,9 +204,15 @@ def find_maxdist_clusters(image, min_correlation):
 
     print('assigning values...')
 
-    centers = centers[:, :num_centers]
-    print(centers)
-    clusters = np.argmax(np.matmul(image, centers), 1)
+    centers = centers[:num_centers]
+    clusters = compute_class_map_by_angle(image, centers)
     print('done')
 
-    return (clusters.reshape(nrows, ncols), centers.T.copy())
+    return (clusters, centers)
+
+def find_ppi_clusters(image):
+    purity_map = ppi(image, 3000)
+    indices = np.nonzero(purity_map > 4)
+    centers = image[indices]
+    print(centers.shape)
+    return (compute_class_map_by_angle(image, centers), centers)
