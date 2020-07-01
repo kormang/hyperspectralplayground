@@ -149,9 +149,21 @@ def find_mincorr_from_center(values, centers = None):
     index_of_min = np.argmin(corrs)
     return values[index_of_min]
 
+def compute_class_map_by_dot_product(image, centers):
+    """
+        Image is 3D array, of shape WxHxC (where C is number of channels).
+        Centers is 2D array, of shape NxC (where N is number of centers, C channels).
+        Returns map as 2D array of shape WxH.
+    """
+    return np.argmax(np.einsum('ijk,mk->ijm', image, centers), axis=2)
+
 def compute_class_map_by_angle(image, centers):
-    (nrows, ncols, _) = image.shape
-    return np.argmax(np.einsum('ijk,mk->ijm', image, centers), axis=2).reshape(nrows, ncols)
+    """
+        Image is 3D array, of shape WxHxC (where C is number of channels).
+        Centers is 2D array, of shape NxC (where N is number of centers, C channels).
+        Returns map as 2D array of shape WxH.
+    """
+    return compute_class_map_by_dot_product(normalized(image), normalized(centers))
 
 def find_maxdist_clusters(image, min_correlation):
     """
@@ -210,9 +222,13 @@ def find_maxdist_clusters(image, min_correlation):
 
     return (clusters, centers)
 
-def find_ppi_clusters(image):
-    purity_map = ppi(image, 3000)
-    indices = np.nonzero(purity_map > 4)
+def find_ppi_clusters(image, iterations = 3000, threshold = 4):
+    purity_map = ppi(image, iterations)
+    indices = np.nonzero(purity_map > threshold)
     centers = image[indices]
     print(centers.shape)
     return (compute_class_map_by_angle(image, centers), centers)
+
+def find_smacc_clusters(image, min_endmembers = 120, max_residual_norm = float('Inf')):
+    S, F, R = smacc(image, min_endmembers, max_residual_norm)
+    return (compute_class_map_by_angle(image, S), S)
