@@ -4,6 +4,7 @@ from __future__ import print_function
 from spectral import *
 import numpy as np
 import pylab
+import random
 
 def generate_class_colours(n):
     import colorsys
@@ -32,8 +33,11 @@ def show_histogram(hist_values, title):
     raw_input("Press Enter to continue...")
     pylab.close()
 
-def show_classes(class_map, image=None):
+def show_classes(class_map, image=None, shuffle_colours=False):
     class_colours = generate_class_colours(np.max(class_map))
+    if shuffle_colours:
+        random.shuffle(class_colours)
+
     if image is not None:
         view = imshow(image, (29, 20, 12), classes=class_map, colors=class_colours, title="Image with class overlay")
         view.set_display_mode('overlay')
